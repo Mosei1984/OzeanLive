@@ -9,10 +9,11 @@ struct DirtSpot {
   bool active;
 };
 
-constexpr uint8_t MAX_DIRT_SPOTS = 20;
+constexpr uint8_t MAX_DIRT_SPOTS = 5;
 
 void initDirt();
 void updateDirt(float deltaTime);
 void drawDirt();
-void cleanDirt();  // Reduce all spots when cleaning action triggered
+void cleanDirt();  // Remove all spots when cleaning action triggered
+void spawnPoopSpot(int16_t x);  // Spawn poop spot after feeding
 uint8_t getTotalDirtLevel();  // Sum of all strengths (for status)

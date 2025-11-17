@@ -1,14 +1,7 @@
 #pragma once
 #include <Arduino.h>
-#include "../sprite_common.h"
 
-// DUMMY-SPRITE fuer MEDIUM_BUBBLE
-// -------------------------------------------------------------
-// Diese Datei ist nur ein Platzhalter, damit das Projekt
-// direkt kompiliert. Du kannst hier spaeter deinen echten
-// Bitmap-Array aus dem Sprite-Generator einfuegen.
-// -------------------------------------------------------------
-
+// Medium Bubble - 16x16
 const uint16_t MEDIUM_BUBBLE_WIDTH  = 16;
 const uint16_t MEDIUM_BUBBLE_HEIGHT = 16;
 

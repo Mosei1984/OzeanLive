@@ -11,6 +11,7 @@
 #include "menu.h"
 #include "dirt.h"
 #include "eeprom_store.h"
+#include "shrimp.h"
 
 // ---- Zustände für spätere Erweiterungen (z.B. Einstellungsmenü) ----
 enum ScreenID
@@ -63,6 +64,7 @@ void setup()
     initBubbles();
     initParticles();
     initDirt();
+    initShrimp();
 
     tft.fillScreen(COLOR_BG);
     
@@ -141,18 +143,24 @@ void loop()
     updatePetStats();
 
     // --- Frame zeichnen ---
-    // CRITICAL: Restore particle regions FIRST to avoid erasing other sprites
+    // CRITICAL: Restore regions FIRST to avoid erasing other sprites
     restoreParticleRegions();
+    restorePetRegion();
     
     drawStatusBar();
     updateAndDrawBubbles(dtSecSmooth);
     updateAndDrawSeahorse();
+    updateAndDrawShrimp(dtSecSmooth);
+    
+    // Draw poop on ground BEFORE fish (fish swims over it)
     updateDirt(dtSecSmooth);
     drawDirt();
-    updateParticles(dtSecSmooth);
+    
+    // Draw fish on top of poop
     drawPetAnimated(dtSecSmooth);
     
     // Draw particles LAST so they appear on top
+    updateParticles(dtSecSmooth);
     drawParticles();
     drawBottomMenu();
 

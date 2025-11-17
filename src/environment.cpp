@@ -1,13 +1,11 @@
 #include "environment.h"
 #include "sprite_common.h"
 
-// Sprite-Header (du ersetzt später die Dummy-Implementierungen)
+// Sprite-Header
 #include "sprites/stone.h"
 #include "sprites/kelp.h"
-#include "sprites/brain_coral.h"
-#include "sprites/fan_coral.h"
-#include "sprites/staghorn_coral.h"
-#include "sprites/tube_coral.h"
+#include "sprites/corals.h"
+#include "sprites/anemone_green.h"
 
 // Seepferdchen-Basisposition wird in main festgelegt
 extern int16_t seahorseBaseX;
@@ -77,6 +75,11 @@ void drawEnvironmentToCanvas(GFXcanvas16* canvas) {
   int16_t tubeY = groundY - TUBE_CORAL_HEIGHT + 10;
   drawSpriteToCanvas(canvas, tube_coralBitmap, TUBE_CORAL_WIDTH, TUBE_CORAL_HEIGHT,
                   tubeX, tubeY);
+
+  // Bottom-right: Anemone
+  int16_t anemoneX = PLAY_AREA_X + PLAY_AREA_W - ANEMONE_GREEN_WIDTH - 5;
+  int16_t anemoneY = groundY - ANEMONE_GREEN_HEIGHT + 10;
+  drawSpriteToCanvas(canvas, anemone_greenBitmap, ANEMONE_GREEN_WIDTH, ANEMONE_GREEN_HEIGHT, anemoneX, anemoneY);
 }
 
 void drawEnvironment() {
@@ -127,4 +130,20 @@ void drawEnvironment() {
   int16_t tubeY = groundY - TUBE_CORAL_HEIGHT + 10;
   drawSpriteBasic(tube_coralBitmap, TUBE_CORAL_WIDTH, TUBE_CORAL_HEIGHT,
                   tubeX, tubeY);
+
+  // Bottom-right: Anemone
+  int16_t anemoneX = PLAY_AREA_X + PLAY_AREA_W - ANEMONE_GREEN_WIDTH - 5;
+  int16_t anemoneY = groundY - ANEMONE_GREEN_HEIGHT + 10;
+  drawSpriteBasic(anemone_greenBitmap, ANEMONE_GREEN_WIDTH, ANEMONE_GREEN_HEIGHT, anemoneX, anemoneY);
+}
+
+void getAnemonePosition(int16_t& x, int16_t& y) {
+  int16_t groundH = 28;
+  int16_t groundY = PLAY_AREA_Y + PLAY_AREA_H - groundH;
+  
+  int16_t anemoneX = PLAY_AREA_X + PLAY_AREA_W - ANEMONE_GREEN_WIDTH - 5;
+  int16_t anemoneY = groundY - ANEMONE_GREEN_HEIGHT + 10;
+  
+  x = anemoneX + ANEMONE_GREEN_WIDTH / 2;
+  y = anemoneY + ANEMONE_GREEN_HEIGHT / 2;
 }

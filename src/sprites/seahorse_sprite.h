@@ -1,7 +1,7 @@
 #pragma once
 #include <Arduino.h>
-#include "../sprite_common.h"
 
+// Seahorse - 16x16
 const uint16_t SEAHORSE_WIDTH  = 16;
 const uint16_t SEAHORSE_HEIGHT = 16;
 

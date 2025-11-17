@@ -6,6 +6,7 @@
 #include "particles.h"
 #include "dirt.h"
 #include "eeprom_store.h"
+#include "environment.h"
 
 // Globale Pet-Instanz
 PetStats pet;
@@ -33,6 +34,14 @@ static float swimPhase = 0.0f;
 static float noiseAccum = 0.0f;
 static float noiseValue = 0.0f;
 
+// Poop counter for feeding mechanic
+static uint8_t feedCount = 0;
+static uint8_t nextPoopAt = 5;
+
+// Animation duration tracking
+static float actionTimer = 0.0f;
+static bool actionInProgress = false;
+
 // Parameter für "Steering"
 constexpr float FISH_MAX_SPEED = 60.0f;    // Pixel pro Sekunde
 constexpr float FISH_STEER_FORCE = 80.0f;  // wie schnell Richtung gewechselt wird
@@ -57,6 +66,8 @@ void initPet() {
   fishVX = 0.0f;
   fishVY = 0.0f;
 
+  nextPoopAt = random(5, 8);
+  
   chooseNewTarget();
   
   initAnimator();
@@ -77,8 +88,15 @@ void updatePetStats() {
   msAccum -= ticks * 1000;
   if (ticks) {
     int h = pet.hunger + (int)ticks;
-    int f = pet.fun    - (int)ticks;
+    int f = pet.fun    - (int)ticks;  // normal decay
     int e = pet.energy - (int)ticks;
+    
+    // Dirt accelerates fun decay (double speed when dirty)
+    uint8_t dirt = getTotalDirtLevel();
+    if (dirt > 0) {
+      f -= (int)ticks;  // additional decay
+    }
+    
     pet.hunger = (h > 100) ? 100 : h;
     pet.fun    = (f <   0) ?   0 : f;
     pet.energy = (e <   0) ?   0 : e;
@@ -108,14 +126,30 @@ static void updateFishMovement(float dtSec) {
     dtSec = 0.02f;
   }
 
+  // Block movement during EATING or POOPING animations
+  if (gAnimator.currentState == ANIM_EATING || gAnimator.currentState == ANIM_POOPING) {
+    fishVX = 0.0f;
+    fishVY = 0.0f;
+    return;
+  }
+
   // Richtung zum Ziel
   float dx = targetX - fishX;
   float dy = targetY - fishY;
   float dist = sqrtf(dx*dx + dy*dy);
 
+  // Don't choose new target while sleeping - stay at anemone
+  bool sleeping = (gAnimator.currentState == ANIM_SLEEPING) || (pendingAction == ACTION_REST);
+  
   if (dist < FISH_ARRIVE_RADIUS) {
-    // Neuer Wegpunkt, wenn nahe genug
-    chooseNewTarget();
+    // Neuer Wegpunkt, wenn nahe genug (aber nicht beim Schlafen)
+    if (!sleeping) {
+      chooseNewTarget();
+    } else {
+      // Gently settle at anemone
+      fishVX *= 0.85f;
+      fishVY *= 0.85f;
+    }
   } else if (dist > 0.1f) {
     // Normalisiere Richtung
     float dirX = dx / dist;
@@ -202,19 +236,58 @@ void drawPetAnimated(float dtSec) {
   updateFishMovement(dtSec);
   updateAnimator(dtSec);
 
+  // Handle action timers for EATING (10s) and POOPING (3s)
+  if (actionInProgress) {
+    actionTimer += dtSec;
+    
+    // Check if action duration completed
+    bool actionComplete = false;
+    if (gAnimator.currentState == ANIM_EATING && actionTimer >= 10.0f) {
+      actionComplete = true;
+      
+      // Check if we should poop after eating
+      if (feedCount >= nextPoopAt) {
+        pendingAction = ACTION_POOP;
+        actionInProgress = false;
+        actionTimer = 0.0f;
+      }
+    } else if (gAnimator.currentState == ANIM_POOPING && actionTimer >= 3.0f) {
+      actionComplete = true;
+    }
+    
+    // Resume normal movement after action completes
+    if (actionComplete) {
+      actionInProgress = false;
+      actionTimer = 0.0f;
+      requestTransition(ANIM_IDLE, 0.25f);
+    }
+  }
+
   // Apply action effects immediately for instant response
   switch (pendingAction) {
     case ACTION_FEED:
-      requestTransition(ANIM_EATING, 0.25f);
-      spawnFoodCrumbs(fishX, fishY + 10, 8);
-      pet.hunger -= 20;
-      if (pet.hunger < 0) pet.hunger = 0;
-      pet.energy += 5;
-      if (pet.energy > 100) pet.energy = 100;
+      if (!actionInProgress) {
+        requestTransition(ANIM_EATING, 0.25f);
+        pet.hunger = max(0, pet.hunger - 20);
+        pet.fun = min(100, pet.fun + 5);
+        feedCount++;
+        actionInProgress = true;
+        actionTimer = 0.0f;
+      }
+      break;
+    case ACTION_POOP:
+      if (!actionInProgress) {
+        requestTransition(ANIM_POOPING, 0.25f);
+        spawnPoopSpot((int16_t)fishX);
+        feedCount = 0;
+        nextPoopAt = random(5, 8);
+        actionInProgress = true;
+        actionTimer = 0.0f;
+      }
       break;
     case ACTION_PLAY:
       requestTransition(ANIM_PLAYING, 0.25f);
-      spawnHearts(fishX, fishY - 10, 6);
+      // No particles needed - playing frame has hearts built-in
       pet.fun += 20;
       if (pet.fun > 100) pet.fun = 100;
       pet.energy -= 5;
@@ -222,11 +295,16 @@ void drawPetAnimated(float dtSec) {
       break;
     case ACTION_REST:
       requestTransition(ANIM_SLEEPING, 0.25f);
-      spawnZZZ(fishX - 15, fishY - 20, 3);
-      pet.energy += 20;
-      if (pet.energy > 100) pet.energy = 100;
-      pet.hunger += 5;
-      if (pet.hunger > 100) pet.hunger = 100;
+      // No particles needed - sleeping frame has ZZZ built-in
+      {
+        int16_t anemX, anemY;
+        getAnemonePosition(anemX, anemY);
+        targetX = anemX;
+        targetY = anemY;
+      }
+      pet.energy = min(100, pet.energy + 20);
+      pet.hunger = min(100, pet.hunger + 5);
+      pet.fun = min(100, pet.fun + 5);  // slight fun boost
       break;
     case ACTION_CLEAN:
       {
@@ -235,13 +313,20 @@ void drawPetAnimated(float dtSec) {
           requestTransition(ANIM_MOVING, 0.25f);
           spawnDirtPuff(fishX, fishY, 12);
           cleanDirt();
-          pet.energy -= 10;
-          if (pet.energy < 0) pet.energy = 0;
+          pet.fun = min(100, pet.fun + 15);  // instant fun boost
         }
       }
       break;
     case ACTION_NONE:
       {
+        // Keep fish at anemone when sleeping
+        if (gAnimator.currentState == ANIM_SLEEPING && gAnimator.transitionProgress >= 1.0f) {
+          int16_t anemX, anemY;
+          getAnemonePosition(anemX, anemY);
+          targetX = anemX;
+          targetY = anemY;
+        }
+        
         // Hysteresis to prevent animation thrashing at speed boundary
         float speed = sqrtf(fishVX * fishVX + fishVY * fishVY);
         if (gAnimator.currentState == ANIM_IDLE && speed > 12.0f) {
@@ -281,6 +366,13 @@ void drawPetAnimated(float dtSec) {
   int16_t x = static_cast<int16_t>(fishX + swing - CLOWNFISH_WIDTH / 2);
   int16_t y = static_cast<int16_t>(fishY + bob - CLOWNFISH_HEIGHT / 2);
 
+  drawSpriteOptimized(frame, CLOWNFISH_WIDTH, CLOWNFISH_HEIGHT, x, y, flip);
+
+  prevFishDrawX = x;
+  prevFishDrawY = y;
+}
+
+void restorePetRegion() {
   if (prevFishDrawX >= 0) {
     int16_t margin = 8;
     int16_t rx = max((int16_t)PLAY_AREA_X, (int16_t)(prevFishDrawX - margin));
@@ -291,9 +383,4 @@ void drawPetAnimated(float dtSec) {
       restoreRegion(rx, ry, rw, rh);
     }
   }
-
-  drawSpriteOptimized(frame, CLOWNFISH_WIDTH, CLOWNFISH_HEIGHT, x, y, flip);
-
-  prevFishDrawX = x;
-  prevFishDrawY = y;
 }

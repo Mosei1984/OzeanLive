@@ -14,6 +14,7 @@ static const AnimationClip* clipForState(AnimState s) {
     case ANIM_EATING:   return &CLIP_EATING;
     case ANIM_PLAYING:  return &CLIP_PLAYING;
     case ANIM_SLEEPING: return &CLIP_SLEEPING;
+    case ANIM_POOPING:  return &CLIP_POOPING;
     default:            return &CLIP_IDLE;
   }
 }
@@ -28,6 +29,7 @@ void initAnimator() {
   gAnimator.frameAccumulator = 0.0f;
   gAnimator.currentClip = nullptr;
   gAnimator.nextClip = nullptr;
+  gAnimator.currentClip = &CLIP_IDLE;
 }
 
 void updateAnimator(float deltaTime) {
@@ -50,6 +52,8 @@ void updateAnimator(float deltaTime) {
       gAnimator.frameAccumulator = 0.0f;
     }
   }
+  
+  if (!gAnimator.currentClip || gAnimator.currentClip->fps <= 0.0f) return;
   
   if (gAnimator.currentClip != nullptr && gAnimator.transitionProgress >= 1.0f) {
     float frameDuration = 1.0f / gAnimator.currentClip->fps;

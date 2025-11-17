@@ -56,7 +56,7 @@ int8_t findLatestRecord() {
     uint16_t computedCrc = crc16_ccitt((const uint8_t*)&rec, sizeof(SaveRecord) - 2);
     if (computedCrc != rec.crc) continue;
     
-    if (maxIdx == -1 || rec.seq > maxSeq) {
+    if (maxIdx == -1 || (int16_t)(rec.seq - maxSeq) > 0) {
       maxSeq = rec.seq;
       maxIdx = i;
     }
@@ -120,7 +120,7 @@ void saveStatsIfDue(int16_t hunger, int16_t fun, int16_t energy, bool eventSave)
   }
   
   unsigned long now = millis();
-  unsigned long minInterval = eventSave ? 10000 : 60000;
+  unsigned long minInterval = eventSave ? 30000 : 60000;
   
   if (now - lastSaveMs < minInterval && lastSaveMs != 0) {
     return;

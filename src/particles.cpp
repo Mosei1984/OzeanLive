@@ -1,7 +1,11 @@
 #include "particles.h"
 #include "gfx.h"
+#include "sprite_common.h"
 #include "sprites/particles.h"
 #include <math.h>
+
+constexpr uint8_t PARTICLE_MAX_WIDTH = PARTICLE_DIRT_WIDTH;
+constexpr uint8_t PARTICLE_MAX_HEIGHT = PARTICLE_DIRT_HEIGHT;
 
 Particle gParticles[MAX_PARTICLES];
 
@@ -12,18 +16,6 @@ static struct {
 // Helper: Get particle sprite dimensions
 static void getParticleWH(ParticleType type, uint8_t* w, uint8_t* h) {
   switch (type) {
-    case PARTICLE_FOOD_CRUMB:
-      *w = PARTICLE_CRUMB_WIDTH;
-      *h = PARTICLE_CRUMB_HEIGHT;
-      break;
-    case PARTICLE_HEART:
-      *w = PARTICLE_HEART_WIDTH;
-      *h = PARTICLE_HEART_HEIGHT;
-      break;
-    case PARTICLE_ZZZ:
-      *w = PARTICLE_ZZZ_WIDTH;
-      *h = PARTICLE_ZZZ_HEIGHT;
-      break;
     case PARTICLE_DIRT:
       *w = PARTICLE_DIRT_WIDTH;
       *h = PARTICLE_DIRT_HEIGHT;
@@ -62,16 +54,8 @@ void updateParticles(float deltaTime) {
     Particle& p = gParticles[i];
 
     constexpr float GRAVITY = 20.0f;
-    constexpr float BUOYANCY = -15.0f;
 
     switch (p.type) {
-      case PARTICLE_FOOD_CRUMB:
-        p.vy += GRAVITY * deltaTime;
-        break;
-      case PARTICLE_HEART:
-      case PARTICLE_ZZZ:
-        p.vy += BUOYANCY * deltaTime;
-        break;
       case PARTICLE_DIRT:
         p.vy += GRAVITY * 0.5f * deltaTime;
         break;
@@ -107,8 +91,8 @@ void restoreParticleRegions() {
       if (gParticles[i].alive) {
         getParticleWH(gParticles[i].type, &w, &h);
       } else {
-        w = 12; // Max of all particle sizes
-        h = 12;
+        w = PARTICLE_MAX_WIDTH;
+        h = PARTICLE_MAX_HEIGHT;
       }
       int16_t margin = 2;
       int16_t rx = max((int16_t)PLAY_AREA_X, (int16_t)(prevPositions[i].x - margin));
@@ -142,21 +126,6 @@ void drawParticles() {
     uint8_t w = 8, h = 8;
 
     switch (p.type) {
-      case PARTICLE_FOOD_CRUMB:
-        sprite = particle_crumb;
-        w = PARTICLE_CRUMB_WIDTH;
-        h = PARTICLE_CRUMB_HEIGHT;
-        break;
-      case PARTICLE_HEART:
-        sprite = particle_heart;
-        w = PARTICLE_HEART_WIDTH;
-        h = PARTICLE_HEART_HEIGHT;
-        break;
-      case PARTICLE_ZZZ:
-        sprite = particle_zzz;
-        w = PARTICLE_ZZZ_WIDTH;
-        h = PARTICLE_ZZZ_HEIGHT;
-        break;
       case PARTICLE_DIRT:
         sprite = particle_dirt;
         w = PARTICLE_DIRT_WIDTH;
@@ -173,7 +142,7 @@ void drawParticles() {
           int16_t sy = py + dy;
           if (sx < PLAY_AREA_X || sx >= PLAY_AREA_X + PLAY_AREA_W ||
               sy < PLAY_AREA_Y || sy >= PLAY_AREA_Y + PLAY_AREA_H) continue;
-          uint16_t color = sprite[dy * w + dx];
+          uint16_t color = pgm_read_word(&sprite[dy * w + dx]);
           if (color != TRANSPARENT_COLOR && shouldDrawPixel(sx, sy, alpha)) {
             tft.drawPixel(sx, sy, color);
           }
@@ -200,37 +169,6 @@ static void spawnParticle(float x, float y, float vx, float vy, ParticleType typ
       gParticles[i].alive = true;
       return;
     }
-  }
-}
-
-void spawnFoodCrumbs(float centerX, float centerY, uint8_t count) {
-  for (uint8_t i = 0; i < count; i++) {
-    float angle = random(0, 360) * DEG_TO_RAD;
-    float speed = random(10, 40);
-    float vx = cos(angle) * speed;
-    float vy = sin(angle) * speed - 20.0f;
-    float lifetime = random(10, 20) / 10.0f;
-    spawnParticle(centerX, centerY, vx, vy, PARTICLE_FOOD_CRUMB, lifetime);
-  }
-}
-
-void spawnHearts(float centerX, float centerY, uint8_t count) {
-  for (uint8_t i = 0; i < count; i++) {
-    float angle = random(-30, 30) * DEG_TO_RAD;
-    float speed = random(15, 30);
-    float vx = sin(angle) * speed;
-    float vy = -abs(cos(angle) * speed);
-    float lifetime = random(15, 25) / 10.0f;
-    spawnParticle(centerX, centerY, vx, vy, PARTICLE_HEART, lifetime);
-  }
-}
-
-void spawnZZZ(float centerX, float centerY, uint8_t count) {
-  for (uint8_t i = 0; i < count; i++) {
-    float vx = random(-10, 10);
-    float vy = random(-30, -15);
-    float lifetime = random(15, 30) / 10.0f;
-    spawnParticle(centerX, centerY, vx, vy, PARTICLE_ZZZ, lifetime);
   }
 }
 

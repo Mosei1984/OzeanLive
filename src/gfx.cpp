@@ -23,6 +23,8 @@ void initDisplay() {
 }
 
 void initBackgroundCanvas() {
+  if (bgCanvas) return; // Already allocated, prevent leak
+  
   bgCanvas = new GFXcanvas16(TFT_WIDTH, TFT_HEIGHT);
   if (!bgCanvas) {
     Serial.println("ERROR: Failed to allocate bgCanvas!");
@@ -31,7 +33,7 @@ void initBackgroundCanvas() {
 }
 
 void restoreRegion(int16_t x, int16_t y, int16_t w, int16_t h) {
-  if (!bgCanvas) return;
+  if (gNoCanvas || !bgCanvas) return;
   
   // Hard-clip to screen bounds to prevent OOB access
   int16_t x0 = (x > 0) ? x : 0;

@@ -6,7 +6,8 @@ enum AnimState {
   ANIM_MOVING,
   ANIM_EATING,
   ANIM_PLAYING,
-  ANIM_SLEEPING
+  ANIM_SLEEPING,
+  ANIM_POOPING
 };
 
 struct AnimationClip {

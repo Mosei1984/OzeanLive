@@ -16,7 +16,7 @@ constexpr uint8_t NUM_BUBBLES = 10;
 static Bubble bubbles[NUM_BUBBLES];
 
 static void resetBubble(Bubble &b) {
-  b.x = PLAY_AREA_X + random(0, PLAY_AREA_W);
+  b.x = PLAY_AREA_X + random(0, PLAY_AREA_W - MEDIUM_BUBBLE_WIDTH);
   b.y = PLAY_AREA_Y + PLAY_AREA_H + random(5, 40);
   b.speed = 30.0f + random(0, 31);
   b.big = (random(0, 100) < 40);

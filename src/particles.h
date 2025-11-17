@@ -3,9 +3,6 @@
 
 enum ParticleType {
   PARTICLE_NONE = 0,
-  PARTICLE_FOOD_CRUMB,
-  PARTICLE_HEART,
-  PARTICLE_ZZZ,
   PARTICLE_DIRT
 };
 
@@ -26,7 +23,4 @@ void updateParticles(float deltaTime);
 void restoreParticleRegions();
 void drawParticles();
 
-void spawnFoodCrumbs(float centerX, float centerY, uint8_t count);
-void spawnHearts(float centerX, float centerY, uint8_t count);
-void spawnZZZ(float centerX, float centerY, uint8_t count);
 void spawnDirtPuff(float centerX, float centerY, uint8_t count);

@@ -17,6 +17,9 @@ void initPet();
 // Aktualisiert Pet-Werte abhängig von Zeit & Aktionen
 void updatePetStats();
 
+// Stellt die vorherige Fischregion wieder her
+void restorePetRegion();
+
 // Zeichnet Fisch mit Animation & Wegpunkt-Navigation
 void drawPetAnimated(float dtSec);
 
@@ -26,7 +29,8 @@ enum PetAction {
   ACTION_FEED,
   ACTION_PLAY,
   ACTION_REST,
-  ACTION_CLEAN
+  ACTION_CLEAN,
+  ACTION_POOP
 };
 
 extern PetAction pendingAction;

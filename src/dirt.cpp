@@ -96,7 +96,7 @@ void drawDirt() {
         if (px < 0 || px >= TFT_WIDTH || py < 0 || py >= TFT_HEIGHT) continue;
         
         // Get sprite pixel
-        uint16_t color = sprite[dy * DIRT_SPOT_SIZE + dx];
+        uint16_t color = pgm_read_word(&sprite[dy * DIRT_SPOT_SIZE + dx]);
         
         // Skip transparent pixels
         if (color == TRANSPARENT_COLOR) continue;
@@ -117,18 +117,41 @@ void cleanDirt() {
     // Restore region first to erase existing dirt
     restoreRegion(gDirtSpots[i].x, gDirtSpots[i].y, DIRT_SPOT_SIZE, DIRT_SPOT_SIZE);
     
-    // Reduce strength by 30-50
-    int16_t reduction = random(30, 51);
-    int16_t newStrength = (int16_t)gDirtSpots[i].strength - reduction;
-    
-    if (newStrength <= 0) {
-      // Deactivate spot and spawn particles
-      gDirtSpots[i].active = false;
-      spawnDirtPuff(gDirtSpots[i].x + DIRT_SPOT_SIZE / 2, 
-                    gDirtSpots[i].y + DIRT_SPOT_SIZE / 2, 
-                    6);
-    } else {
-      gDirtSpots[i].strength = (uint8_t)newStrength;
+    // Remove all dirt spots completely
+    gDirtSpots[i].active = false;
+    spawnDirtPuff(gDirtSpots[i].x + DIRT_SPOT_SIZE / 2, 
+                  gDirtSpots[i].y + DIRT_SPOT_SIZE / 2, 
+                  6);
+  }
+}
+
+void spawnPoopSpot(int16_t x) {
+  for (uint8_t i = 0; i < MAX_DIRT_SPOTS; i++) {
+    if (!gDirtSpots[i].active) {
+      gDirtSpots[i].active = true;
+      gDirtSpots[i].kind = random(0, 4);
+      gDirtSpots[i].strength = 40;  // Visible but not max
+      gDirtSpots[i].timeAlive = 0.0f;
+      
+      // Place on ground near fish X position with random offset
+      int16_t groundH = 28;
+      int16_t groundY = PLAY_AREA_Y + PLAY_AREA_H - groundH;
+      
+      // Add random offset to X position (-20 to +20 pixels)
+      int16_t randomOffsetX = random(-20, 21);
+      int16_t poopX = x + randomOffsetX - DIRT_SPOT_SIZE / 2;
+      
+      // Add small random offset to Y position (0 to 5 pixels up from ground)
+      int16_t randomOffsetY = random(0, 6);
+      int16_t poopY = groundY - DIRT_SPOT_SIZE - 1 - randomOffsetY;
+      
+      gDirtSpots[i].x = constrain(poopX,
+                                  (int16_t)PLAY_AREA_X,
+                                  (int16_t)(PLAY_AREA_X + PLAY_AREA_W - DIRT_SPOT_SIZE));
+      gDirtSpots[i].y = constrain(poopY,
+                                  (int16_t)(groundY - DIRT_SPOT_SIZE - 10),
+                                  (int16_t)(groundY - DIRT_SPOT_SIZE));
+      break;
     }
   }
 }
