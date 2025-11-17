@@ -68,9 +68,32 @@ While you cannot run this project in Replit (it needs physical hardware), you ca
 pio run --target upload
 ```
 
+## Generated Sprites
+
+Beautiful pixel art sprites have been created for the game:
+
+### Location
+All sprites are in: `attached_assets/generated_images/`
+
+### What's Available
+- **Clownfish Animations**: 6 sprite frames for different states (idle, moving, eating, playing, sleeping)
+- **Environment**: Seahorse, corals, kelp decorations
+- **Particles**: Food crumbs, hearts, ZZZ, dirt effects
+
+### Conversion Tool
+Use `convert_sprite.py` to convert PNG sprites to RGB565 format:
+
+```bash
+python convert_sprite.py input.png 30 25 variable_name output.txt
+```
+
+See `SPRITE_CONVERSION_GUIDE.md` for detailed instructions!
+
 ## Recent Changes
 
-- [2025-01-17] Imported from GitHub into Replit
+- [2025-11-17] Generated sprite artwork for all game elements
+- [2025-11-17] Created sprite conversion tools and documentation
+- [2025-11-17] Imported from GitHub into Replit
 - Project is ready for code editing but cannot execute without hardware
 
 ## Notes
