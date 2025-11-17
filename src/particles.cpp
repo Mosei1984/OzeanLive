@@ -9,6 +9,32 @@ static struct {
   int16_t x, y;
 } prevPositions[MAX_PARTICLES];
 
+// Helper: Get particle sprite dimensions
+static void getParticleWH(ParticleType type, uint8_t* w, uint8_t* h) {
+  switch (type) {
+    case PARTICLE_FOOD_CRUMB:
+      *w = PARTICLE_CRUMB_WIDTH;
+      *h = PARTICLE_CRUMB_HEIGHT;
+      break;
+    case PARTICLE_HEART:
+      *w = PARTICLE_HEART_WIDTH;
+      *h = PARTICLE_HEART_HEIGHT;
+      break;
+    case PARTICLE_ZZZ:
+      *w = PARTICLE_ZZZ_WIDTH;
+      *h = PARTICLE_ZZZ_HEIGHT;
+      break;
+    case PARTICLE_DIRT:
+      *w = PARTICLE_DIRT_WIDTH;
+      *h = PARTICLE_DIRT_HEIGHT;
+      break;
+    default:
+      *w = 8;
+      *h = 8;
+      break;
+  }
+}
+
 void initParticles() {
   for (uint8_t i = 0; i < MAX_PARTICLES; i++) {
     gParticles[i].alive = false;
@@ -66,22 +92,45 @@ void updateParticles(float deltaTime) {
   }
 }
 
+// Restore all particle regions (call BEFORE drawing other moving objects)
+void restoreParticleRegions() {
+  for (uint8_t i = 0; i < MAX_PARTICLES; i++) {
+    if (prevPositions[i].x >= 0) {
+      if (prevPositions[i].x < PLAY_AREA_X || prevPositions[i].x >= PLAY_AREA_X + PLAY_AREA_W ||
+          prevPositions[i].y < PLAY_AREA_Y || prevPositions[i].y >= PLAY_AREA_Y + PLAY_AREA_H) {
+        prevPositions[i].x = -1;
+        prevPositions[i].y = -1;
+        continue;
+      }
+      uint8_t w, h;
+      // Use last known type if particle still alive, otherwise default
+      if (gParticles[i].alive) {
+        getParticleWH(gParticles[i].type, &w, &h);
+      } else {
+        w = 12; // Max of all particle sizes
+        h = 12;
+      }
+      int16_t margin = 2;
+      int16_t rx = max((int16_t)PLAY_AREA_X, (int16_t)(prevPositions[i].x - margin));
+      int16_t ry = max((int16_t)PLAY_AREA_Y, (int16_t)(prevPositions[i].y - margin));
+      int16_t rw = min((int16_t)(w + margin * 2), (int16_t)(PLAY_AREA_X + PLAY_AREA_W - rx));
+      int16_t rh = min((int16_t)(h + margin * 2), (int16_t)(PLAY_AREA_Y + PLAY_AREA_H - ry));
+      if (rw > 0 && rh > 0) {
+        restoreRegion(rx, ry, rw, rh);
+      }
+      prevPositions[i].x = -1;
+      prevPositions[i].y = -1;
+    }
+  }
+}
+
 void drawParticles() {
   for (uint8_t i = 0; i < MAX_PARTICLES; i++) {
     if (!gParticles[i].alive) {
-      if (prevPositions[i].x >= 0) {
-        restoreRegion(prevPositions[i].x - 2, prevPositions[i].y - 2, 16, 16);
-        prevPositions[i].x = -1;
-        prevPositions[i].y = -1;
-      }
       continue;
     }
 
     Particle& p = gParticles[i];
-
-    if (prevPositions[i].x >= 0) {
-      restoreRegion(prevPositions[i].x - 2, prevPositions[i].y - 2, 16, 16);
-    }
 
     int16_t px = static_cast<int16_t>(p.x);
     int16_t py = static_cast<int16_t>(p.y);
@@ -120,9 +169,13 @@ void drawParticles() {
     if (sprite) {
       for (uint8_t dy = 0; dy < h; dy++) {
         for (uint8_t dx = 0; dx < w; dx++) {
+          int16_t sx = px + dx;
+          int16_t sy = py + dy;
+          if (sx < PLAY_AREA_X || sx >= PLAY_AREA_X + PLAY_AREA_W ||
+              sy < PLAY_AREA_Y || sy >= PLAY_AREA_Y + PLAY_AREA_H) continue;
           uint16_t color = sprite[dy * w + dx];
-          if (color != TRANSPARENT_COLOR && shouldDrawPixel(px + dx, py + dy, alpha)) {
-            tft.drawPixel(px + dx, py + dy, color);
+          if (color != TRANSPARENT_COLOR && shouldDrawPixel(sx, sy, alpha)) {
+            tft.drawPixel(sx, sy, color);
           }
         }
       }

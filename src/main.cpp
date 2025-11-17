@@ -10,6 +10,7 @@
 #include "seahorse.h"
 #include "menu.h"
 #include "dirt.h"
+#include "eeprom_store.h"
 
 // ---- Zustände für spätere Erweiterungen (z.B. Einstellungsmenü) ----
 enum ScreenID
@@ -53,6 +54,12 @@ void setup()
     seahorseBaseY = groundY - 24; // etwas über dem Boden
 
     initPet();
+    int16_t h, f, e;
+    if (loadStats(h, f, e)) {
+        pet.hunger = h;
+        pet.fun = f;
+        pet.energy = e;
+    }
     initBubbles();
     initParticles();
     initDirt();
@@ -66,6 +73,8 @@ void setup()
         drawEnvironmentToCanvas(bgCanvas);
         // Initial aufs TFT blitten
         tft.drawRGBBitmap(0, 0, bgCanvas->getBuffer(), TFT_WIDTH, TFT_HEIGHT);
+        drawStatusBar();
+        drawBottomMenu();
     }
 }
 
@@ -113,8 +122,9 @@ void loop()
         inited = true;
     }
     
-    // deltaTime berechnen
-    float dtSec = (nowUs - lastFrameUs) / 1e6f;
+    // deltaTime berechnen (wrap-safe for micros() overflow at ~71 minutes)
+    uint32_t deltaUs = (uint32_t)(nowUs - lastFrameUs);
+    float dtSec = deltaUs * 1e-6f;
     dtSec = constrain(dtSec, DT_MIN, DT_MAX);
     dtSecSmooth = dtSecSmooth * (1.0f - DT_EMA_ALPHA) + dtSec * DT_EMA_ALPHA;
     lastFrameUs = nowUs;
@@ -131,6 +141,9 @@ void loop()
     updatePetStats();
 
     // --- Frame zeichnen ---
+    // CRITICAL: Restore particle regions FIRST to avoid erasing other sprites
+    restoreParticleRegions();
+    
     drawStatusBar();
     updateAndDrawBubbles(dtSecSmooth);
     updateAndDrawSeahorse();
@@ -138,19 +151,21 @@ void loop()
     drawDirt();
     updateParticles(dtSecSmooth);
     drawPetAnimated(dtSecSmooth);
+    
+    // Draw particles LAST so they appear on top
     drawParticles();
     drawBottomMenu();
 
-    // Präzises Frame-Pacing
+    // Präzises Frame-Pacing (wrap-safe)
     if (nextFrameUs == 0)
         nextFrameUs = micros();
     nextFrameUs += targetFrameUs;
-    long sleep = nextFrameUs - micros();
+    int32_t sleep = (int32_t)(nextFrameUs - micros());
     if (sleep > 0)
     {
         delayMicroseconds(sleep);
     }
-    else if (sleep < -(long)targetFrameUs)
+    else if (sleep < -(int32_t)targetFrameUs)
     {
         nextFrameUs = micros(); // Reset bei großer Verzögerung
     }

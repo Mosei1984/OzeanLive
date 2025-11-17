@@ -12,6 +12,7 @@ int16_t PLAY_AREA_H = 0;
 
 // Background-Canvas
 GFXcanvas16* bgCanvas = nullptr;
+bool gNoCanvas = false;
 
 // Displayinitialisierung
 void initDisplay() {
@@ -25,6 +26,7 @@ void initBackgroundCanvas() {
   bgCanvas = new GFXcanvas16(TFT_WIDTH, TFT_HEIGHT);
   if (!bgCanvas) {
     Serial.println("ERROR: Failed to allocate bgCanvas!");
+    gNoCanvas = true;
   }
 }
 
@@ -32,10 +34,10 @@ void restoreRegion(int16_t x, int16_t y, int16_t w, int16_t h) {
   if (!bgCanvas) return;
   
   // Hard-clip to screen bounds to prevent OOB access
-  int16_t x0 = max<int16_t>(0, x);
-  int16_t y0 = max<int16_t>(0, y);
-  int16_t x1 = min<int16_t>(TFT_WIDTH,  x + w);
-  int16_t y1 = min<int16_t>(TFT_HEIGHT, y + h);
+  int16_t x0 = (x > 0) ? x : 0;
+  int16_t y0 = (y > 0) ? y : 0;
+  int16_t x1 = ((x + w) < TFT_WIDTH) ? (x + w) : TFT_WIDTH;
+  int16_t y1 = ((y + h) < TFT_HEIGHT) ? (y + h) : TFT_HEIGHT;
   
   // Nothing to draw if clipped entirely
   if (x0 >= x1 || y0 >= y1) return;
@@ -102,8 +104,8 @@ void drawSpriteOptimized(const uint16_t* bmp, uint16_t w, uint16_t h, int16_t x,
       // Clip run to horizontal screen bounds
       if (runX1 <= 0 || runX0 >= TFT_WIDTH) continue;
       
-      int16_t clipStart = max<int16_t>(0, runX0);
-      int16_t clipEnd = min<int16_t>(TFT_WIDTH, runX1);
+      int16_t clipStart = (runX0 > 0) ? runX0 : 0;
+      int16_t clipEnd = (runX1 < TFT_WIDTH) ? runX1 : TFT_WIDTH;
       uint16_t clipLen = clipEnd - clipStart;
       
       // Calculate offset into sprite for clipped region

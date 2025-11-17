@@ -26,5 +26,5 @@ void updateAndDrawSeahorse() {
   drawSpriteBasic(seahorseBitmap, SEAHORSE_WIDTH, SEAHORSE_HEIGHT,
                   seahorseBaseX, y);
   
-  prevSeahorseY = seahorseBaseY;
+  prevSeahorseY = y;
 }

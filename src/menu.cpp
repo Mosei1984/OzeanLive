@@ -9,7 +9,7 @@ enum MenuItem {
 };
 
 static MenuItem currentItem = MENU_FEED;
-static MenuItem lastDrawnItem = MENU_FEED;
+static MenuItem lastDrawnItem = (MenuItem)255; // Sentinel to force initial draw
 
 // Button-Zustände (Entprellung)
 static int lastBtnLeftState  = HIGH;

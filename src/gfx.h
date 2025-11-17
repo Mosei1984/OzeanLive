@@ -15,6 +15,7 @@ extern int16_t PLAY_AREA_H;
 
 // Background-Canvas (320x170, 16-bit)
 extern GFXcanvas16* bgCanvas;
+extern bool gNoCanvas;
 
 // Initialisierung
 void initDisplay();

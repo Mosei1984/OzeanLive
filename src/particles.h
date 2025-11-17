@@ -23,6 +23,7 @@ constexpr uint8_t MAX_PARTICLES = 30;
 
 void initParticles();
 void updateParticles(float deltaTime);
+void restoreParticleRegions();
 void drawParticles();
 
 void spawnFoodCrumbs(float centerX, float centerY, uint8_t count);

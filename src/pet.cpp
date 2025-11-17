@@ -5,6 +5,7 @@
 #include "animator.h"
 #include "particles.h"
 #include "dirt.h"
+#include "eeprom_store.h"
 
 // Globale Pet-Instanz
 PetStats pet;
@@ -66,16 +67,23 @@ void initPet() {
 
 // Aktualisiert Pet-Werte in einfacher Simulationslogik
 void updatePetStats() {
+  // Handle time accumulation properly (even across millis wrap or long pauses)
+  static uint32_t msAccum = 0;
   unsigned long now = millis();
-  unsigned long dt = now - pet.lastUpdateMs;
-  if (dt < 1000) return; // nur etwa einmal pro Sekunde
-
+  uint32_t dt = (uint32_t)(now - pet.lastUpdateMs);
   pet.lastUpdateMs = now;
-
-  // Passive Veränderung über Zeit
-  if (pet.hunger < 100) pet.hunger += 1;
-  if (pet.fun    >   0) pet.fun    -= 1;
-  if (pet.energy >   0) pet.energy -= 1;
+  msAccum = min(msAccum + dt, 60000u); // cap at 60s
+  uint32_t ticks = msAccum / 1000;
+  msAccum -= ticks * 1000;
+  if (ticks) {
+    int h = pet.hunger + (int)ticks;
+    int f = pet.fun    - (int)ticks;
+    int e = pet.energy - (int)ticks;
+    pet.hunger = (h > 100) ? 100 : h;
+    pet.fun    = (f <   0) ?   0 : f;
+    pet.energy = (e <   0) ?   0 : e;
+    saveStatsIfDue(pet.hunger, pet.fun, pet.energy, false);
+  }
 }
 
 // Easing functions for smooth movement
@@ -234,10 +242,11 @@ void drawPetAnimated(float dtSec) {
       break;
     case ACTION_NONE:
       {
+        // Hysteresis to prevent animation thrashing at speed boundary
         float speed = sqrtf(fishVX * fishVX + fishVY * fishVY);
-        if (speed > 10.0f && gAnimator.currentState != ANIM_MOVING) {
+        if (gAnimator.currentState == ANIM_IDLE && speed > 12.0f) {
           requestTransition(ANIM_MOVING, 0.2f);
-        } else if (speed <= 10.0f && gAnimator.currentState == ANIM_MOVING) {
+        } else if (gAnimator.currentState == ANIM_MOVING && speed < 8.0f) {
           requestTransition(ANIM_IDLE, 0.2f);
         }
       }
@@ -246,6 +255,7 @@ void drawPetAnimated(float dtSec) {
   
   // Clear action after processing
   if (pendingAction != ACTION_NONE) {
+    saveStatsIfDue(pet.hunger, pet.fun, pet.energy, true);
     pendingAction = ACTION_NONE;
   }
 
@@ -273,8 +283,13 @@ void drawPetAnimated(float dtSec) {
 
   if (prevFishDrawX >= 0) {
     int16_t margin = 8;
-    restoreRegion(prevFishDrawX - margin, prevFishDrawY - margin,
-                  CLOWNFISH_WIDTH + margin * 2, CLOWNFISH_HEIGHT + margin * 2);
+    int16_t rx = max((int16_t)PLAY_AREA_X, (int16_t)(prevFishDrawX - margin));
+    int16_t ry = max((int16_t)PLAY_AREA_Y, (int16_t)(prevFishDrawY - margin));
+    int16_t rw = min((int16_t)(CLOWNFISH_WIDTH + margin * 2), (int16_t)(PLAY_AREA_X + PLAY_AREA_W - rx));
+    int16_t rh = min((int16_t)(CLOWNFISH_HEIGHT + margin * 2), (int16_t)(PLAY_AREA_Y + PLAY_AREA_H - ry));
+    if (rw > 0 && rh > 0) {
+      restoreRegion(rx, ry, rw, rh);
+    }
   }
 
   drawSpriteOptimized(frame, CLOWNFISH_WIDTH, CLOWNFISH_HEIGHT, x, y, flip);

@@ -111,8 +111,6 @@ void drawDirt() {
 }
 
 void cleanDirt() {
-  bool anyReduced = false;
-  
   for (uint8_t i = 0; i < MAX_DIRT_SPOTS; i++) {
     if (!gDirtSpots[i].active) continue;
     
@@ -129,10 +127,8 @@ void cleanDirt() {
       spawnDirtPuff(gDirtSpots[i].x + DIRT_SPOT_SIZE / 2, 
                     gDirtSpots[i].y + DIRT_SPOT_SIZE / 2, 
                     6);
-      anyReduced = true;
     } else {
       gDirtSpots[i].strength = (uint8_t)newStrength;
-      anyReduced = true;
     }
   }
 }
