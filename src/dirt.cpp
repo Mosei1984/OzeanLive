@@ -1,5 +1,6 @@
 #include "dirt.h"
 #include "gfx.h"
+#include "sprite_common.h"
 #include "sprites/dirt_spots.h"
 #include "particles.h"
 #include <math.h>
@@ -98,7 +99,7 @@ void drawDirt() {
         uint16_t color = sprite[dy * DIRT_SPOT_SIZE + dx];
         
         // Skip transparent pixels
-        if (color == COLOR_TRANSPARENT) continue;
+        if (color == TRANSPARENT_COLOR) continue;
         
         // Apply stipple pattern
         if (shouldDrawDirtPixel(px, py, stippleLevel)) {

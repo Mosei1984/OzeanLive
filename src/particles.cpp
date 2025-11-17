@@ -94,22 +94,22 @@ void drawParticles() {
 
     switch (p.type) {
       case PARTICLE_FOOD_CRUMB:
-        sprite = PARTICLE_CRUMB;
+        sprite = particle_crumb;
         w = PARTICLE_CRUMB_WIDTH;
         h = PARTICLE_CRUMB_HEIGHT;
         break;
       case PARTICLE_HEART:
-        sprite = PARTICLE_HEART;
+        sprite = particle_heart;
         w = PARTICLE_HEART_WIDTH;
         h = PARTICLE_HEART_HEIGHT;
         break;
       case PARTICLE_ZZZ:
-        sprite = PARTICLE_ZZZ;
+        sprite = particle_zzz;
         w = PARTICLE_ZZZ_WIDTH;
         h = PARTICLE_ZZZ_HEIGHT;
         break;
       case PARTICLE_DIRT:
-        sprite = PARTICLE_DIRT;
+        sprite = particle_dirt;
         w = PARTICLE_DIRT_WIDTH;
         h = PARTICLE_DIRT_HEIGHT;
         break;

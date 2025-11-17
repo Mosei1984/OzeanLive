@@ -116,9 +116,10 @@ static float easeOutCubic(float t) {
   return f * f * f + 1.0f;
 }
 
-static float easeInOutQuad(float t) {
-  return t < 0.5f ? 2.0f * t * t : 1.0f - pow(-2.0f * t + 2.0f, 2.0f) / 2.0f;
-}
+// Unused for now, kept for future use
+// static float easeInOutQuad(float t) {
+//   return t < 0.5f ? 2.0f * t * t : 1.0f - pow(-2.0f * t + 2.0f, 2.0f) / 2.0f;
+// }
 
 // Interne Funktion: Fischposition entlang Wegpunkten aktualisieren
 static void updateFishMovement(float dtSec) {
