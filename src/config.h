@@ -35,3 +35,8 @@ const uint16_t COLOR_STATUS_BG = 0x4208;  // dunkles Grau
 
 // Animationsgeschwindigkeit (zeitbasiert: Phase-Units pro Sekunde)
 constexpr float ANIM_PHASE_RATE = 4.5f;
+
+// Frame timing constants
+constexpr float DT_MIN = 0.004f;      // 4ms min deltaTime
+constexpr float DT_MAX = 0.05f;       // 50ms max deltaTime
+constexpr float DT_EMA_ALPHA = 0.2f;  // EMA smoothing weight

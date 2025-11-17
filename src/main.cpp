@@ -104,11 +104,19 @@ const unsigned long targetFrameUs = 16667; // ~60 FPS
 // Loop
 void loop()
 {
-    // deltaTime berechnen
+    // Initialize frame timers on first run to avoid spike
+    static bool inited = false;
     unsigned long nowUs = micros();
+    if (!inited) {
+        lastFrameUs = nowUs;
+        nextFrameUs = nowUs;
+        inited = true;
+    }
+    
+    // deltaTime berechnen
     float dtSec = (nowUs - lastFrameUs) / 1e6f;
-    dtSec = constrain(dtSec, 0.004f, 0.05f);         // Clamping [4ms, 50ms]
-    dtSecSmooth = dtSecSmooth * 0.8f + dtSec * 0.2f; // EMA smoothing
+    dtSec = constrain(dtSec, DT_MIN, DT_MAX);
+    dtSecSmooth = dtSecSmooth * (1.0f - DT_EMA_ALPHA) + dtSec * DT_EMA_ALPHA;
     lastFrameUs = nowUs;
 
     // Animationsphase fortschreiben (zeitbasiert)

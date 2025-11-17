@@ -76,38 +76,6 @@ void updatePetStats() {
   if (pet.hunger < 100) pet.hunger += 1;
   if (pet.fun    >   0) pet.fun    -= 1;
   if (pet.energy >   0) pet.energy -= 1;
-
-  // Aktionen aus Menü
-  switch (pendingAction) {
-    case ACTION_FEED:
-      pet.hunger -= 20;
-      if (pet.hunger < 0) pet.hunger = 0;
-      pet.energy += 5;
-      if (pet.energy > 100) pet.energy = 100;
-      break;
-    case ACTION_PLAY:
-      pet.fun += 20;
-      if (pet.fun > 100) pet.fun = 100;
-      pet.energy -= 5;
-      if (pet.energy < 0) pet.energy = 0;
-      break;
-    case ACTION_REST:
-      pet.energy += 20;
-      if (pet.energy > 100) pet.energy = 100;
-      pet.hunger += 5;
-      if (pet.hunger > 100) pet.hunger = 100;
-      break;
-    case ACTION_CLEAN:
-      cleanDirt();
-      pet.energy -= 10;
-      if (pet.energy < 0) pet.energy = 0;
-      break;
-    case ACTION_NONE:
-    default:
-      break;
-  }
-
-  pendingAction = ACTION_NONE;
 }
 
 // Easing functions for smooth movement
@@ -226,18 +194,31 @@ void drawPetAnimated(float dtSec) {
   updateFishMovement(dtSec);
   updateAnimator(dtSec);
 
+  // Apply action effects immediately for instant response
   switch (pendingAction) {
     case ACTION_FEED:
       requestTransition(ANIM_EATING, 0.25f);
       spawnFoodCrumbs(fishX, fishY + 10, 8);
+      pet.hunger -= 20;
+      if (pet.hunger < 0) pet.hunger = 0;
+      pet.energy += 5;
+      if (pet.energy > 100) pet.energy = 100;
       break;
     case ACTION_PLAY:
       requestTransition(ANIM_PLAYING, 0.25f);
       spawnHearts(fishX, fishY - 10, 6);
+      pet.fun += 20;
+      if (pet.fun > 100) pet.fun = 100;
+      pet.energy -= 5;
+      if (pet.energy < 0) pet.energy = 0;
       break;
     case ACTION_REST:
       requestTransition(ANIM_SLEEPING, 0.25f);
       spawnZZZ(fishX - 15, fishY - 20, 3);
+      pet.energy += 20;
+      if (pet.energy > 100) pet.energy = 100;
+      pet.hunger += 5;
+      if (pet.hunger > 100) pet.hunger = 100;
       break;
     case ACTION_CLEAN:
       {
@@ -245,6 +226,9 @@ void drawPetAnimated(float dtSec) {
         if (dirtLevel > 0) {
           requestTransition(ANIM_MOVING, 0.25f);
           spawnDirtPuff(fishX, fishY, 12);
+          cleanDirt();
+          pet.energy -= 10;
+          if (pet.energy < 0) pet.energy = 0;
         }
       }
       break;
@@ -259,17 +243,29 @@ void drawPetAnimated(float dtSec) {
       }
       break;
   }
+  
+  // Clear action after processing
+  if (pendingAction != ACTION_NONE) {
+    pendingAction = ACTION_NONE;
+  }
 
   // Speed-dependent tail movement using swimPhase
   float speedNorm = sqrtf(fishVX*fishVX + fishVY*fishVY) / FISH_MAX_SPEED;
   float swingAmp = 3.0f + speedNorm * 3.0f;
   float bobAmp = 2.0f + speedNorm * 2.0f;
   
-  float transBlend = 1.0f - gAnimator.transitionProgress;
-  float swing = sinf(swimPhase) * swingAmp * transBlend;
-  float bob = sinf(swimPhase * 0.7f) * bobAmp * transBlend;
+  // Scale animation amplitude during transitions, but keep motion smooth (0.4 -> 1.0)
+  float ampScale = (gAnimator.transitionProgress < 1.0f) 
+                   ? (0.4f + 0.6f * gAnimator.transitionProgress)
+                   : 1.0f;
+  float swing = sinf(swimPhase) * swingAmp * ampScale;
+  float bob = sinf(swimPhase * 0.7f) * bobAmp * ampScale;
 
   const uint16_t* frame = getCurrentFrame();
+  
+  // Guard against null frame (shouldn't happen, but prevents crash)
+  if (!frame) return;
+  
   bool flip = isFlipped();
 
   int16_t x = static_cast<int16_t>(fishX + swing - CLOWNFISH_WIDTH / 2);

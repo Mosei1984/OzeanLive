@@ -116,6 +116,9 @@ void cleanDirt() {
   for (uint8_t i = 0; i < MAX_DIRT_SPOTS; i++) {
     if (!gDirtSpots[i].active) continue;
     
+    // Restore region first to erase existing dirt
+    restoreRegion(gDirtSpots[i].x, gDirtSpots[i].y, DIRT_SPOT_SIZE, DIRT_SPOT_SIZE);
+    
     // Reduce strength by 30-50
     int16_t reduction = random(30, 51);
     int16_t newStrength = (int16_t)gDirtSpots[i].strength - reduction;

@@ -9,6 +9,7 @@ enum MenuItem {
 };
 
 static MenuItem currentItem = MENU_FEED;
+static MenuItem lastDrawnItem = MENU_FEED;
 
 // Button-Zustände (Entprellung)
 static int lastBtnLeftState  = HIGH;
@@ -44,22 +45,30 @@ static void readButtons() {
 // Menülogik: Auswahl verschieben & Aktionen auslösen
 void updateMenuLogic() {
   readButtons();
+  
+  // Capture and clear button flags for one-shot behavior
+  bool left = btnLeftPressed;
+  bool right = btnRightPressed;
+  bool ok = btnOkPressed;
+  btnLeftPressed = false;
+  btnRightPressed = false;
+  btnOkPressed = false;
 
-  if (btnLeftPressed) {
+  if (left) {
     // Auswahl nach links
     if (currentItem == MENU_FEED) {
       currentItem = MENU_CLEAN;
     } else {
       currentItem = static_cast<MenuItem>(static_cast<int>(currentItem) - 1);
     }
-  } else if (btnRightPressed) {
+  } else if (right) {
     // Auswahl nach rechts
     if (currentItem == MENU_CLEAN) {
       currentItem = MENU_FEED;
     } else {
       currentItem = static_cast<MenuItem>(static_cast<int>(currentItem) + 1);
     }
-  } else if (btnOkPressed) {
+  } else if (ok) {
     // Aktion bestätigen
     switch (currentItem) {
       case MENU_FEED: pendingAction = ACTION_FEED; break;
@@ -72,6 +81,9 @@ void updateMenuLogic() {
 
 // Zeichnet Menü mit Hervorhebung des aktuell gewählten Eintrags
 void drawBottomMenu() {
+  // Skip redraw if selection hasn't changed
+  if (currentItem == lastDrawnItem) return;
+  
   int16_t y = TFT_HEIGHT - BOTTOM_BAR_H;
 
   tft.fillRect(0, y, TFT_WIDTH, BOTTOM_BAR_H, COLOR_STATUS_BG);
@@ -123,4 +135,7 @@ void drawBottomMenu() {
   drawItem(MENU_PLAY, playX, playW, labelPlay);
   drawItem(MENU_REST, restX, restW, labelRest);
   drawItem(MENU_CLEAN, cleanX, cleanW, labelClean);
+  
+  // Update cache
+  lastDrawnItem = currentItem;
 }

@@ -1,9 +1,22 @@
 #include "animator.h"
 #include "pet.h"
+#include "sprites/clownfish.h"
 
 Animator gAnimator;
 
 extern float fishVX;
+
+// Helper: Map AnimState to AnimationClip
+static const AnimationClip* clipForState(AnimState s) {
+  switch (s) {
+    case ANIM_IDLE:     return &CLIP_IDLE;
+    case ANIM_MOVING:   return &CLIP_MOVING;
+    case ANIM_EATING:   return &CLIP_EATING;
+    case ANIM_PLAYING:  return &CLIP_PLAYING;
+    case ANIM_SLEEPING: return &CLIP_SLEEPING;
+    default:            return &CLIP_IDLE;
+  }
+}
 
 void initAnimator() {
   gAnimator.currentState = ANIM_IDLE;
@@ -21,7 +34,12 @@ void updateAnimator(float deltaTime) {
   gAnimator.timeInState += deltaTime;
   
   if (gAnimator.transitionProgress < 1.0f) {
-    gAnimator.transitionProgress += deltaTime / gAnimator.transitionDuration;
+    // Guard against zero/negative duration
+    if (gAnimator.transitionDuration <= 0.0f) {
+      gAnimator.transitionProgress = 1.0f;
+    } else {
+      gAnimator.transitionProgress += deltaTime / gAnimator.transitionDuration;
+    }
     
     if (gAnimator.transitionProgress >= 1.0f) {
       gAnimator.transitionProgress = 1.0f;
@@ -53,11 +71,16 @@ void updateAnimator(float deltaTime) {
 }
 
 void requestTransition(AnimState newState, float duration) {
-  if (newState != gAnimator.currentState) {
-    gAnimator.nextState = newState;
-    gAnimator.transitionDuration = duration;
-    gAnimator.transitionProgress = 0.0f;
-  }
+  // Don't transition if already in that state
+  if (newState == gAnimator.currentState) return;
+  
+  // Don't re-request if already transitioning to that state
+  if (gAnimator.transitionProgress < 1.0f && gAnimator.nextState == newState) return;
+  
+  gAnimator.nextState = newState;
+  gAnimator.nextClip = clipForState(newState);
+  gAnimator.transitionDuration = max(0.001f, duration); // Ensure positive duration
+  gAnimator.transitionProgress = 0.0f;
 }
 
 const uint16_t* getCurrentFrame() {
