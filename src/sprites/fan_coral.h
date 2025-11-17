@@ -9,7 +9,7 @@
 // Bitmap-Array aus dem Sprite-Generator einfuegen.
 // -------------------------------------------------------------
 
-const uint16_t FAN_CORAL_WIDTH  = 16;
-const uint16_t FAN_CORAL_HEIGHT = 16;
+const uint16_t FAN_CORAL_WIDTH  = 28;
+const uint16_t FAN_CORAL_HEIGHT = 24;
 
 extern const uint16_t fan_coralBitmap[] PROGMEM;

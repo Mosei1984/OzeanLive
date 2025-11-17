@@ -9,7 +9,7 @@
 // Bitmap-Array aus dem Sprite-Generator einfuegen.
 // -------------------------------------------------------------
 
-const uint16_t TUBE_CORAL_WIDTH  = 16;
-const uint16_t TUBE_CORAL_HEIGHT = 16;
+const uint16_t TUBE_CORAL_WIDTH  = 20;
+const uint16_t TUBE_CORAL_HEIGHT = 24;
 
 extern const uint16_t tube_coralBitmap[] PROGMEM;

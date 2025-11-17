@@ -9,7 +9,7 @@
 // Bitmap-Array aus dem Sprite-Generator einfuegen.
 // -------------------------------------------------------------
 
-const uint16_t BRAIN_CORAL_WIDTH  = 16;
+const uint16_t BRAIN_CORAL_WIDTH  = 24;
 const uint16_t BRAIN_CORAL_HEIGHT = 16;
 
 extern const uint16_t brain_coralBitmap[] PROGMEM;

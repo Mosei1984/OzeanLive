@@ -1,57 +1,98 @@
 #include "particles.h"
-
-constexpr uint16_t T = TRANSPARENT_COLOR;
-constexpr uint16_t BROWN = 0x6200;
-constexpr uint16_t LIGHT_BROWN = 0x8A40;
-constexpr uint16_t RED = 0xF800;
-constexpr uint16_t PINK = 0xF81F;
-constexpr uint16_t LIGHT_PINK = 0xFCDF;
-constexpr uint16_t WHITE = 0xFFFF;
-constexpr uint16_t LIGHT_GRAY = 0xC618;
-constexpr uint16_t GRAY = 0x8410;
-constexpr uint16_t DARK_GRAY = 0x4208;
-constexpr uint16_t DARK_GREEN = 0x0320;
+#include "generated/particles.h"
 
 const uint16_t PARTICLE_CRUMB[64] PROGMEM = {
-  T, T, T, T, T, T, T, T,
-  T, T, BROWN, BROWN, BROWN, T, T, T,
-  T, BROWN, LIGHT_BROWN, LIGHT_BROWN, BROWN, BROWN, T, T,
-  T, BROWN, LIGHT_BROWN, BROWN, BROWN, BROWN, T, T,
-  T, BROWN, BROWN, BROWN, BROWN, T, T, T,
-  T, T, BROWN, BROWN, T, T, T, T,
-  T, T, T, T, T, T, T, T,
-  T, T, T, T, T, T, T, T
+  particle_crumb[0], particle_crumb[1], particle_crumb[2], particle_crumb[3], 
+  particle_crumb[4], particle_crumb[5], particle_crumb[6], particle_crumb[7],
+  particle_crumb[8], particle_crumb[9], particle_crumb[10], particle_crumb[11],
+  particle_crumb[12], particle_crumb[13], particle_crumb[14], particle_crumb[15],
+  particle_crumb[16], particle_crumb[17], particle_crumb[18], particle_crumb[19],
+  particle_crumb[20], particle_crumb[21], particle_crumb[22], particle_crumb[23],
+  particle_crumb[24], particle_crumb[25], particle_crumb[26], particle_crumb[27],
+  particle_crumb[28], particle_crumb[29], particle_crumb[30], particle_crumb[31],
+  particle_crumb[32], particle_crumb[33], particle_crumb[34], particle_crumb[35],
+  particle_crumb[36], particle_crumb[37], particle_crumb[38], particle_crumb[39],
+  particle_crumb[40], particle_crumb[41], particle_crumb[42], particle_crumb[43],
+  particle_crumb[44], particle_crumb[45], particle_crumb[46], particle_crumb[47],
+  particle_crumb[48], particle_crumb[49], particle_crumb[50], particle_crumb[51],
+  particle_crumb[52], particle_crumb[53], particle_crumb[54], particle_crumb[55],
+  particle_crumb[56], particle_crumb[57], particle_crumb[58], particle_crumb[59],
+  particle_crumb[60], particle_crumb[61], particle_crumb[62], particle_crumb[63]
 };
 
 const uint16_t PARTICLE_HEART[64] PROGMEM = {
-  T, T, T, T, T, T, T, T,
-  T, RED, PINK, T, RED, PINK, T, T,
-  RED, LIGHT_PINK, LIGHT_PINK, PINK, LIGHT_PINK, LIGHT_PINK, RED, T,
-  RED, LIGHT_PINK, LIGHT_PINK, LIGHT_PINK, LIGHT_PINK, LIGHT_PINK, RED, T,
-  T, RED, LIGHT_PINK, LIGHT_PINK, LIGHT_PINK, RED, T, T,
-  T, T, RED, LIGHT_PINK, RED, T, T, T,
-  T, T, T, RED, T, T, T, T,
-  T, T, T, T, T, T, T, T
+  particle_heart[0], particle_heart[1], particle_heart[2], particle_heart[3],
+  particle_heart[4], particle_heart[5], particle_heart[6], particle_heart[7],
+  particle_heart[8], particle_heart[9], particle_heart[10], particle_heart[11],
+  particle_heart[12], particle_heart[13], particle_heart[14], particle_heart[15],
+  particle_heart[16], particle_heart[17], particle_heart[18], particle_heart[19],
+  particle_heart[20], particle_heart[21], particle_heart[22], particle_heart[23],
+  particle_heart[24], particle_heart[25], particle_heart[26], particle_heart[27],
+  particle_heart[28], particle_heart[29], particle_heart[30], particle_heart[31],
+  particle_heart[32], particle_heart[33], particle_heart[34], particle_heart[35],
+  particle_heart[36], particle_heart[37], particle_heart[38], particle_heart[39],
+  particle_heart[40], particle_heart[41], particle_heart[42], particle_heart[43],
+  particle_heart[44], particle_heart[45], particle_heart[46], particle_heart[47],
+  particle_heart[48], particle_heart[49], particle_heart[50], particle_heart[51],
+  particle_heart[52], particle_heart[53], particle_heart[54], particle_heart[55],
+  particle_heart[56], particle_heart[57], particle_heart[58], particle_heart[59],
+  particle_heart[60], particle_heart[61], particle_heart[62], particle_heart[63]
 };
 
-const uint16_t PARTICLE_ZZZ[64] PROGMEM = {
-  T, T, T, T, T, T, T, T,
-  T, WHITE, WHITE, WHITE, WHITE, T, T, T,
-  T, T, T, WHITE, T, T, T, T,
-  T, T, WHITE, T, T, T, T, T,
-  T, WHITE, WHITE, WHITE, WHITE, T, T, T,
-  T, T, T, T, T, T, T, T,
-  T, T, T, T, T, T, T, T,
-  T, T, T, T, T, T, T, T
+const uint16_t PARTICLE_ZZZ[144] PROGMEM = {
+  particle_zzz[0], particle_zzz[1], particle_zzz[2], particle_zzz[3],
+  particle_zzz[4], particle_zzz[5], particle_zzz[6], particle_zzz[7],
+  particle_zzz[8], particle_zzz[9], particle_zzz[10], particle_zzz[11],
+  particle_zzz[12], particle_zzz[13], particle_zzz[14], particle_zzz[15],
+  particle_zzz[16], particle_zzz[17], particle_zzz[18], particle_zzz[19],
+  particle_zzz[20], particle_zzz[21], particle_zzz[22], particle_zzz[23],
+  particle_zzz[24], particle_zzz[25], particle_zzz[26], particle_zzz[27],
+  particle_zzz[28], particle_zzz[29], particle_zzz[30], particle_zzz[31],
+  particle_zzz[32], particle_zzz[33], particle_zzz[34], particle_zzz[35],
+  particle_zzz[36], particle_zzz[37], particle_zzz[38], particle_zzz[39],
+  particle_zzz[40], particle_zzz[41], particle_zzz[42], particle_zzz[43],
+  particle_zzz[44], particle_zzz[45], particle_zzz[46], particle_zzz[47],
+  particle_zzz[48], particle_zzz[49], particle_zzz[50], particle_zzz[51],
+  particle_zzz[52], particle_zzz[53], particle_zzz[54], particle_zzz[55],
+  particle_zzz[56], particle_zzz[57], particle_zzz[58], particle_zzz[59],
+  particle_zzz[60], particle_zzz[61], particle_zzz[62], particle_zzz[63],
+  particle_zzz[64], particle_zzz[65], particle_zzz[66], particle_zzz[67],
+  particle_zzz[68], particle_zzz[69], particle_zzz[70], particle_zzz[71],
+  particle_zzz[72], particle_zzz[73], particle_zzz[74], particle_zzz[75],
+  particle_zzz[76], particle_zzz[77], particle_zzz[78], particle_zzz[79],
+  particle_zzz[80], particle_zzz[81], particle_zzz[82], particle_zzz[83],
+  particle_zzz[84], particle_zzz[85], particle_zzz[86], particle_zzz[87],
+  particle_zzz[88], particle_zzz[89], particle_zzz[90], particle_zzz[91],
+  particle_zzz[92], particle_zzz[93], particle_zzz[94], particle_zzz[95],
+  particle_zzz[96], particle_zzz[97], particle_zzz[98], particle_zzz[99],
+  particle_zzz[100], particle_zzz[101], particle_zzz[102], particle_zzz[103],
+  particle_zzz[104], particle_zzz[105], particle_zzz[106], particle_zzz[107],
+  particle_zzz[108], particle_zzz[109], particle_zzz[110], particle_zzz[111],
+  particle_zzz[112], particle_zzz[113], particle_zzz[114], particle_zzz[115],
+  particle_zzz[116], particle_zzz[117], particle_zzz[118], particle_zzz[119],
+  particle_zzz[120], particle_zzz[121], particle_zzz[122], particle_zzz[123],
+  particle_zzz[124], particle_zzz[125], particle_zzz[126], particle_zzz[127],
+  particle_zzz[128], particle_zzz[129], particle_zzz[130], particle_zzz[131],
+  particle_zzz[132], particle_zzz[133], particle_zzz[134], particle_zzz[135],
+  particle_zzz[136], particle_zzz[137], particle_zzz[138], particle_zzz[139],
+  particle_zzz[140], particle_zzz[141], particle_zzz[142], particle_zzz[143]
 };
 
 const uint16_t PARTICLE_DIRT[64] PROGMEM = {
-  T, T, T, T, T, T, T, T,
-  T, GRAY, LIGHT_GRAY, DARK_GRAY, T, T, T, T,
-  T, DARK_GREEN, GRAY, GRAY, DARK_GRAY, T, T, T,
-  T, T, DARK_GRAY, DARK_GREEN, GRAY, DARK_GRAY, T, T,
-  T, T, T, DARK_GRAY, DARK_GREEN, GRAY, T, T,
-  T, T, T, T, DARK_GRAY, T, T, T,
-  T, T, T, T, T, T, T, T,
-  T, T, T, T, T, T, T, T
+  particle_dirt[0], particle_dirt[1], particle_dirt[2], particle_dirt[3],
+  particle_dirt[4], particle_dirt[5], particle_dirt[6], particle_dirt[7],
+  particle_dirt[8], particle_dirt[9], particle_dirt[10], particle_dirt[11],
+  particle_dirt[12], particle_dirt[13], particle_dirt[14], particle_dirt[15],
+  particle_dirt[16], particle_dirt[17], particle_dirt[18], particle_dirt[19],
+  particle_dirt[20], particle_dirt[21], particle_dirt[22], particle_dirt[23],
+  particle_dirt[24], particle_dirt[25], particle_dirt[26], particle_dirt[27],
+  particle_dirt[28], particle_dirt[29], particle_dirt[30], particle_dirt[31],
+  particle_dirt[32], particle_dirt[33], particle_dirt[34], particle_dirt[35],
+  particle_dirt[36], particle_dirt[37], particle_dirt[38], particle_dirt[39],
+  particle_dirt[40], particle_dirt[41], particle_dirt[42], particle_dirt[43],
+  particle_dirt[44], particle_dirt[45], particle_dirt[46], particle_dirt[47],
+  particle_dirt[48], particle_dirt[49], particle_dirt[50], particle_dirt[51],
+  particle_dirt[52], particle_dirt[53], particle_dirt[54], particle_dirt[55],
+  particle_dirt[56], particle_dirt[57], particle_dirt[58], particle_dirt[59],
+  particle_dirt[60], particle_dirt[61], particle_dirt[62], particle_dirt[63]
 };
