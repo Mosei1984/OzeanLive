@@ -11,124 +11,176 @@ int16_t PLAY_AREA_W = 0;
 int16_t PLAY_AREA_H = 0;
 
 // Background-Canvas
-GFXcanvas16* bgCanvas = nullptr;
+GFXcanvas16 *bgCanvas = nullptr;
 bool gNoCanvas = false;
 
 // Displayinitialisierung
-void initDisplay() {
-  tft.init(TFT_WIDTH, TFT_HEIGHT);
-  tft.setRotation(1); // Landscape: 320 (X) x 170 (Y)
-  tft.fillScreen(COLOR_BG);
-  tft.setTextWrap(false);
+void initDisplay()
+{
+    tft.init(TFT_WIDTH, TFT_HEIGHT);
+    tft.setRotation(1); // Landscape: 320 (X) x 170 (Y)
+    tft.fillScreen(COLOR_BG);
+    tft.setTextWrap(false);
 }
 
-void initBackgroundCanvas() {
-  if (bgCanvas) return; // Already allocated, prevent leak
-  
-  bgCanvas = new GFXcanvas16(TFT_WIDTH, TFT_HEIGHT);
-  if (!bgCanvas) {
-    Serial.println("ERROR: Failed to allocate bgCanvas!");
-    gNoCanvas = true;
-  }
+void initBackgroundCanvas()
+{
+    if (bgCanvas)
+        return; // Already allocated, prevent leak
+
+    bgCanvas = new GFXcanvas16(TFT_WIDTH, TFT_HEIGHT);
+    if (!bgCanvas)
+    {
+        Serial.println("ERROR: Failed to allocate bgCanvas!");
+        gNoCanvas = true;
+    }
 }
 
-void restoreRegion(int16_t x, int16_t y, int16_t w, int16_t h) {
-  if (gNoCanvas || !bgCanvas) return;
-  
-  // Hard-clip to screen bounds to prevent OOB access
-  int16_t x0 = (x > 0) ? x : 0;
-  int16_t y0 = (y > 0) ? y : 0;
-  int16_t x1 = ((x + w) < TFT_WIDTH) ? (x + w) : TFT_WIDTH;
-  int16_t y1 = ((y + h) < TFT_HEIGHT) ? (y + h) : TFT_HEIGHT;
-  
-  // Nothing to draw if clipped entirely
-  if (x0 >= x1 || y0 >= y1) return;
-  
-  uint16_t* buf = bgCanvas->getBuffer();
-  tft.startWrite();
-  for (int16_t r = y0; r < y1; r++) {
-    tft.setAddrWindow(x0, r, x1 - x0, 1);
-    tft.writePixels(buf + r * TFT_WIDTH + x0, x1 - x0);
-  }
-  tft.endWrite();
+void restoreRegion(int16_t x, int16_t y, int16_t w, int16_t h)
+{
+    if (gNoCanvas || !bgCanvas)
+        return;
+
+    // Hard-clip to screen bounds to prevent OOB access
+    int16_t x0 = (x > 0) ? x : 0;
+    int16_t y0 = (y > 0) ? y : 0;
+    int16_t x1 = ((x + w) < TFT_WIDTH) ? (x + w) : TFT_WIDTH;
+    int16_t y1 = ((y + h) < TFT_HEIGHT) ? (y + h) : TFT_HEIGHT;
+
+    // Nothing to draw if clipped entirely
+    if (x0 >= x1 || y0 >= y1)
+        return;
+
+    uint16_t *buf = bgCanvas->getBuffer();
+    tft.startWrite();
+    for (int16_t r = y0; r < y1; r++)
+    {
+        tft.setAddrWindow(x0, r, x1 - x0, 1);
+        tft.writePixels(buf + r * TFT_WIDTH + x0, x1 - x0);
+    }
+    tft.endWrite();
 }
 
 // Einfache Sprite-Zeichenfunktion mit Transparenzfarbe
-void drawSpriteBasic(const uint16_t *bitmap, uint16_t w, uint16_t h, int16_t x, int16_t y) {
-  for (uint16_t py = 0; py < h; ++py) {
-    for (uint16_t px = 0; px < w; ++px) {
-      uint16_t color = pgm_read_word(&bitmap[py * w + px]);
-      if (color == TRANSPARENT_COLOR) continue;
+void drawSpriteBasic(const uint16_t *bitmap, uint16_t w, uint16_t h, int16_t x, int16_t y)
+{
+    for (uint16_t py = 0; py < h; ++py)
+    {
+        for (uint16_t px = 0; px < w; ++px)
+        {
+            uint16_t color = pgm_read_word(&bitmap[py * w + px]);
+            if (color == TRANSPARENT_COLOR)
+                continue;
 
-      int16_t sx = x + px;
-      int16_t sy = y + py;
-      if (sx < 0 || sy < 0 || sx >= TFT_WIDTH || sy >= TFT_HEIGHT) continue;
+            int16_t sx = x + px;
+            int16_t sy = y + py;
+            if (sx < 0 || sy < 0 || sx >= TFT_WIDTH || sy >= TFT_HEIGHT)
+                continue;
 
-      tft.drawPixel(sx, sy, color);
+            tft.drawPixel(sx, sy, color);
+        }
     }
-  }
 }
 
-void drawSpriteOptimized(const uint16_t* bmp, uint16_t w, uint16_t h, int16_t x, int16_t y, bool flipX) {
-  static uint16_t buf[96];
-  tft.startWrite();
-  
-  for (uint16_t py=0; py<h; ++py) {
-    int16_t sy = y + py;
-    
-    // Skip scanline if outside vertical bounds
-    if (sy < 0 || sy >= TFT_HEIGHT) continue;
-    
-    uint16_t px=0;
-    while(px<w) {
-      // Skip transparent pixels
-      while(px<w) {
-        uint16_t srcX = flipX ? (w-1-px) : px;
-        uint16_t c = pgm_read_word(&bmp[py*w + srcX]);
-        if (c != TRANSPARENT_COLOR) break;
-        ++px;
-      }
-      if(px>=w) break;
-      
-      // Find run of non-transparent pixels
-      uint16_t start=px;
-      while(px<w) {
-        uint16_t srcX = flipX ? (w-1-px) : px;
-        uint16_t c = pgm_read_word(&bmp[py*w + srcX]);
-        if (c == TRANSPARENT_COLOR) break;
-        ++px;
-      }
-      
-      uint16_t len = px-start;
-      int16_t runX0 = x + start;
-      int16_t runX1 = x + start + len;
-      
-      // Clip run to horizontal screen bounds
-      if (runX1 <= 0 || runX0 >= TFT_WIDTH) continue;
-      
-      int16_t clipStart = (runX0 > 0) ? runX0 : 0;
-      int16_t clipEnd = (runX1 < TFT_WIDTH) ? runX1 : TFT_WIDTH;
-      uint16_t clipLen = clipEnd - clipStart;
-      
-      // Calculate offset into sprite for clipped region
-      uint16_t spriteOffset = clipStart - runX0;
-      
-      // Write clipped run in chunks
-      uint16_t remaining = clipLen;
-      uint16_t offset = 0;
-      while(remaining) {
-        uint16_t chunk = (remaining > 96) ? 96 : remaining;
-        for(uint16_t i=0; i<chunk; i++) {
-          uint16_t srcX = start + spriteOffset + offset + i;
-          if (flipX) srcX = w-1-srcX;
-          buf[i] = pgm_read_word(&bmp[py*w + srcX]);
+void drawSpriteOptimized(const uint16_t *bmp, uint16_t w, uint16_t h, int16_t x, int16_t y, bool flipX)
+{
+    static uint16_t buf[96];
+    tft.startWrite();
+
+    for (uint16_t py = 0; py < h; ++py)
+    {
+        int16_t sy = y + py;
+
+        // Skip scanline if outside vertical bounds
+        if (sy < 0 || sy >= TFT_HEIGHT)
+            continue;
+
+        uint16_t px = 0;
+        while (px < w)
+        {
+            // Skip transparent pixels
+            while (px < w)
+            {
+                uint16_t srcX = flipX ? (w - 1 - px) : px;
+                uint16_t c = pgm_read_word(&bmp[py * w + srcX]);
+                if (c != TRANSPARENT_COLOR)
+                    break;
+                ++px;
+            }
+            if (px >= w)
+                break;
+
+            // Find run of non-transparent pixels
+            uint16_t start = px;
+            while (px < w)
+            {
+                uint16_t srcX = flipX ? (w - 1 - px) : px;
+                uint16_t c = pgm_read_word(&bmp[py * w + srcX]);
+                if (c == TRANSPARENT_COLOR)
+                    break;
+                ++px;
+            }
+
+            uint16_t len = px - start;
+            int16_t runX0 = x + start;
+            int16_t runX1 = x + start + len;
+
+            // Clip run to horizontal screen bounds
+            if (runX1 <= 0 || runX0 >= TFT_WIDTH)
+                continue;
+
+            int16_t clipStart = (runX0 > 0) ? runX0 : 0;
+            int16_t clipEnd = (runX1 < TFT_WIDTH) ? runX1 : TFT_WIDTH;
+            uint16_t clipLen = clipEnd - clipStart;
+
+            // Calculate offset into sprite for clipped region
+            uint16_t spriteOffset = clipStart - runX0;
+
+            // Write clipped run in chunks
+            uint16_t remaining = clipLen;
+            uint16_t offset = 0;
+            while (remaining)
+            {
+                uint16_t chunk = (remaining > 96) ? 96 : remaining;
+                for (uint16_t i = 0; i < chunk; i++)
+                {
+                    uint16_t srcX = start + spriteOffset + offset + i;
+                    if (flipX)
+                        srcX = w - 1 - srcX;
+                    buf[i] = pgm_read_word(&bmp[py * w + srcX]);
+                }
+                tft.setAddrWindow(clipStart + offset, sy, chunk, 1);
+                tft.writePixels(buf, chunk);
+                remaining -= chunk;
+                offset += chunk;
+            }
         }
-        tft.setAddrWindow(clipStart+offset, sy, chunk, 1);
-        tft.writePixels(buf, chunk);
-        remaining -= chunk;
-        offset += chunk;
-      }
     }
-  }
-  tft.endWrite();
+    tft.endWrite();
+}
+
+void drawDeathScreen()
+{
+    int16_t centerX = TFT_WIDTH / 2;
+    int16_t centerY = TFT_HEIGHT / 2;
+
+    tft.fillRect(0, 20, TFT_WIDTH, TFT_HEIGHT - 40, 0x0841);
+
+    tft.setTextSize(2);
+    tft.setTextColor(0xFFFF);
+    const char *msg = "Your fish died!";
+    int16_t msgW = strlen(msg) * 12;
+    tft.setCursor(centerX - msgW / 2, centerY - 20);
+    tft.print(msg);
+
+    tft.fillCircle(centerX - 30, centerY + 20, 3, 0xFFFF);
+    tft.fillCircle(centerX - 30 + 3, centerY + 20 - 3, 1, 0x0000);
+    tft.fillCircle(centerX + 30, centerY + 20, 3, 0xFFFF);
+    tft.fillCircle(centerX + 30 + 3, centerY + 20 - 3, 1, 0x0000);
+
+    tft.setTextSize(1);
+    const char *hint = "Press OK to restart";
+    int16_t hintW = strlen(hint) * 6;
+    tft.setCursor(centerX - hintW / 2, centerY + 50);
+    tft.print(hint);
 }

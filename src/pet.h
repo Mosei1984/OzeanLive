@@ -7,6 +7,9 @@ struct PetStats {
   int fun;       // 0 = gelangweilt, 100 = sehr happy
   int energy;    // 0 = müde, 100 = fit
   unsigned long lastUpdateMs;
+  int16_t hp;
+  uint32_t ageSec;
+  bool dead;
 };
 
 extern PetStats pet;
@@ -16,6 +19,9 @@ void initPet();
 
 // Aktualisiert Pet-Werte abhängig von Zeit & Aktionen
 void updatePetStats();
+
+// Returns max HP based on age
+int16_t getMaxHP();
 
 // Stellt die vorherige Fischregion wieder her
 void restorePetRegion();

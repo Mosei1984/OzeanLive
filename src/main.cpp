@@ -12,6 +12,17 @@
 #include "dirt.h"
 #include "eeprom_store.h"
 #include "shrimp.h"
+#include "start_menu.h"
+#include "pause_menu.h"
+
+enum GameMode
+{
+    MODE_START,
+    MODE_ALIVE,
+    MODE_PAUSED,
+    MODE_DEAD
+};
+static GameMode gMode = MODE_START;
 
 // ---- Zustände für spätere Erweiterungen (z.B. Einstellungsmenü) ----
 enum ScreenID
@@ -54,29 +65,55 @@ void setup()
     seahorseBaseX = PLAY_AREA_X + PLAY_AREA_W / 4;
     seahorseBaseY = groundY - 24; // etwas über dem Boden
 
-    initPet();
-    int16_t h, f, e;
-    if (loadStats(h, f, e)) {
-        pet.hunger = h;
-        pet.fun = f;
-        pet.energy = e;
-    }
     initBubbles();
     initParticles();
     initDirt();
     initShrimp();
 
     tft.fillScreen(COLOR_BG);
-    
+
     // Background-Canvas initialisieren und Environment einmalig rendern
     initBackgroundCanvas();
-    if (bgCanvas) {
+    if (bgCanvas)
+    {
         bgCanvas->fillScreen(COLOR_BG);
         drawEnvironmentToCanvas(bgCanvas);
         // Initial aufs TFT blitten
         tft.drawRGBBitmap(0, 0, bgCanvas->getBuffer(), TFT_WIDTH, TFT_HEIGHT);
         drawStatusBar();
         drawBottomMenu();
+    }
+
+    while (true)
+    {
+        StartChoice choice = runStartMenu(hasSave());
+        if (choice == START_NEW)
+        {
+            clearSave();
+            initPet();
+            gMode = MODE_ALIVE;
+            break;
+        }
+        else if (choice == START_LOAD)
+        {
+            initPet();
+            int16_t h, f, e, hp;
+            uint32_t age;
+            bool dead;
+            if (loadFull(h, f, e, hp, age, dead))
+            {
+                pet.hunger = h;
+                pet.fun = f;
+                pet.energy = e;
+                pet.hp = hp;
+                pet.ageSec = age;
+                pet.dead = dead;
+                if (pet.hp > getMaxHP())
+                    pet.hp = getMaxHP();
+                gMode = pet.dead ? MODE_DEAD : MODE_ALIVE;
+                break;
+            }
+        }
     }
 }
 
@@ -112,18 +149,24 @@ static unsigned long nextFrameUs = 0;
 static float dtSecSmooth = 0.0167f;        // ~60 FPS initial
 const unsigned long targetFrameUs = 16667; // ~60 FPS
 
+// Pause-Erkennung durch langen OK-Druck
+static uint32_t okPressStartMs = 0;
+static const uint32_t LONG_PRESS_MS = 1000;
+static bool okWasPressed = false;
+
 // Loop
 void loop()
 {
     // Initialize frame timers on first run to avoid spike
     static bool inited = false;
     unsigned long nowUs = micros();
-    if (!inited) {
+    if (!inited)
+    {
         lastFrameUs = nowUs;
         nextFrameUs = nowUs;
         inited = true;
     }
-    
+
     // deltaTime berechnen (wrap-safe for micros() overflow at ~71 minutes)
     uint32_t deltaUs = (uint32_t)(nowUs - lastFrameUs);
     float dtSec = deltaUs * 1e-6f;
@@ -136,33 +179,176 @@ void loop()
     if (animPhase > 1000.0f)
         animPhase -= 1000.0f;
 
-    // Menü-Logik aktualisieren (Buttons -> pendingAction)
-    updateMenuLogic();
+    if (gMode == MODE_ALIVE)
+    {
+        // Long-press detection for pause
+        int okState = digitalRead(PIN_BTN_OK);
+        if (okState == LOW && !okWasPressed)
+        {
+            okPressStartMs = millis();
+            okWasPressed = true;
+        }
+        else if (okState == LOW && okWasPressed)
+        {
+            if (millis() - okPressStartMs >= LONG_PRESS_MS)
+            {
+                gMode = MODE_PAUSED;
+                while (digitalRead(PIN_BTN_OK) == LOW)
+                    ;
+                okWasPressed = false;
+            }
+        }
+        else if (okState == HIGH)
+        {
+            okWasPressed = false;
+        }
 
-    // Pet-Logik aktualisieren (Hunger, Fun, Energie, Aktionen)
-    updatePetStats();
+        // Menü-Logik aktualisieren (Buttons -> pendingAction)
+        updateMenuLogic();
 
-    // --- Frame zeichnen ---
-    // CRITICAL: Restore regions FIRST to avoid erasing other sprites
-    restoreParticleRegions();
-    restorePetRegion();
-    
-    drawStatusBar();
-    updateAndDrawBubbles(dtSecSmooth);
-    updateAndDrawSeahorse();
-    updateAndDrawShrimp(dtSecSmooth);
-    
-    // Draw poop on ground BEFORE fish (fish swims over it)
-    updateDirt(dtSecSmooth);
-    drawDirt();
-    
-    // Draw fish on top of poop
-    drawPetAnimated(dtSecSmooth);
-    
-    // Draw particles LAST so they appear on top
-    updateParticles(dtSecSmooth);
-    drawParticles();
-    drawBottomMenu();
+        // Pet-Logik aktualisieren (Hunger, Fun, Energie, Aktionen)
+        updatePetStats();
+
+        // Check if pet died
+        if (pet.dead)
+        {
+            gMode = MODE_DEAD;
+        }
+
+        // --- Frame zeichnen ---
+        // CRITICAL: Restore regions FIRST to avoid erasing other sprites
+        restoreParticleRegions();
+        restorePetRegion();
+
+        drawStatusBar();
+        updateAndDrawBubbles(dtSecSmooth);
+        updateAndDrawSeahorse();
+        updateAndDrawShrimp(dtSecSmooth);
+
+        // Draw poop on ground BEFORE fish (fish swims over it)
+        updateDirt(dtSecSmooth);
+        drawDirt();
+
+        // Draw fish on top of poop
+        drawPetAnimated(dtSecSmooth);
+
+        // Draw particles LAST so they appear on top
+        updateParticles(dtSecSmooth);
+        drawParticles();
+        drawBottomMenu();
+    }
+    else if (gMode == MODE_PAUSED)
+    {
+        PauseChoice choice = runPauseMenu();
+
+        if (choice == PAUSE_RESUME)
+        {
+            gMode = MODE_ALIVE;
+            tft.fillScreen(COLOR_BG);
+            if (bgCanvas)
+            {
+                tft.drawRGBBitmap(0, 0, bgCanvas->getBuffer(), TFT_WIDTH, TFT_HEIGHT);
+            }
+            drawStatusBar();
+            drawBottomMenu();
+        }
+        else if (choice == PAUSE_SAVE_EXIT)
+        {
+            while (true)
+            {
+                StartChoice startChoice = runStartMenu(hasSave());
+                if (startChoice == START_NEW)
+                {
+                    clearSave();
+                    initPet();
+                    gMode = MODE_ALIVE;
+                    tft.fillScreen(COLOR_BG);
+                    if (bgCanvas)
+                    {
+                        tft.drawRGBBitmap(0, 0, bgCanvas->getBuffer(), TFT_WIDTH, TFT_HEIGHT);
+                    }
+                    drawStatusBar();
+                    drawBottomMenu();
+                    break;
+                }
+                else if (startChoice == START_LOAD)
+                {
+                    initPet();
+                    int16_t h, f, e, hp;
+                    uint32_t age;
+                    bool dead;
+                    if (loadFull(h, f, e, hp, age, dead))
+                    {
+                        pet.hunger = h;
+                        pet.fun = f;
+                        pet.energy = e;
+                        pet.hp = hp;
+                        pet.ageSec = age;
+                        pet.dead = dead;
+                        if (pet.hp > getMaxHP())
+                            pet.hp = getMaxHP();
+                        gMode = pet.dead ? MODE_DEAD : MODE_ALIVE;
+                        tft.fillScreen(COLOR_BG);
+                        if (bgCanvas)
+                        {
+                            tft.drawRGBBitmap(0, 0, bgCanvas->getBuffer(), TFT_WIDTH, TFT_HEIGHT);
+                        }
+                        drawStatusBar();
+                        drawBottomMenu();
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    else if (gMode == MODE_DEAD)
+    {
+        if (bgCanvas)
+        {
+            tft.drawRGBBitmap(0, 0, bgCanvas->getBuffer(), TFT_WIDTH, TFT_HEIGHT);
+        }
+        drawDeathScreen();
+
+        if (digitalRead(PIN_BTN_OK) == LOW)
+        {
+            delay(200);
+            while (digitalRead(PIN_BTN_OK) == LOW)
+            {
+            }
+
+            while (true)
+            {
+                StartChoice choice = runStartMenu(hasSave());
+                if (choice == START_NEW)
+                {
+                    clearSave();
+                    initPet();
+                    gMode = MODE_ALIVE;
+                    break;
+                }
+                else if (choice == START_LOAD)
+                {
+                    initPet();
+                    int16_t h, f, e, hp;
+                    uint32_t age;
+                    bool dead;
+                    if (loadFull(h, f, e, hp, age, dead))
+                    {
+                        pet.hunger = h;
+                        pet.fun = f;
+                        pet.energy = e;
+                        pet.hp = hp;
+                        pet.ageSec = age;
+                        pet.dead = dead;
+                        if (pet.hp > getMaxHP())
+                            pet.hp = getMaxHP();
+                        gMode = pet.dead ? MODE_DEAD : MODE_ALIVE;
+                        break;
+                    }
+                }
+            }
+        }
+    }
 
     // Präzises Frame-Pacing (wrap-safe)
     if (nextFrameUs == 0)

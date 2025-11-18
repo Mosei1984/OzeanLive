@@ -15,10 +15,23 @@ struct SaveRecord {
 
 static_assert(sizeof(SaveRecord) == 32, "SaveRecord must be 32 bytes");
 
+struct SaveDataV2 {
+  char magic[4];
+  uint8_t version;
+  int16_t hunger;
+  int16_t fun;
+  int16_t energy;
+  int16_t hp;
+  uint32_t ageSec;
+  uint8_t dead;
+  uint16_t checksum;
+} __attribute__((packed));
+
 constexpr uint32_t MAGIC = 0x41514B50;
 constexpr uint8_t VERSION = 1;
 constexpr uint8_t RECORD_COUNT = 16;
 constexpr uint16_t EEPROM_START = 0;
+constexpr uint16_t V2_EEPROM_ADDR = 512;
 
 static uint16_t lastSeq = 0;
 static int8_t lastIndex = -1;
@@ -26,6 +39,14 @@ static unsigned long lastSaveMs = 0;
 static int16_t lastHunger = -1;
 static int16_t lastFun = -1;
 static int16_t lastEnergy = -1;
+
+static unsigned long lastV2SaveMs = 0;
+static int16_t lastV2Hunger = -1;
+static int16_t lastV2Fun = -1;
+static int16_t lastV2Energy = -1;
+static int16_t lastV2Hp = -1;
+static uint32_t lastV2AgeSec = 0;
+static bool lastV2Dead = false;
 
 uint16_t crc16_ccitt(const uint8_t* data, uint8_t len) {
   uint16_t crc = 0xFFFF;
@@ -127,4 +148,113 @@ void saveStatsIfDue(int16_t hunger, int16_t fun, int16_t energy, bool eventSave)
   }
   
   writeNextRecord(hunger, fun, energy);
+}
+
+bool hasSave() {
+  SaveDataV2 save;
+  EEPROM.get(V2_EEPROM_ADDR, save);
+  
+  if (memcmp(save.magic, "FISH", 4) == 0 && (save.version == 1 || save.version == 2)) {
+    return true;
+  }
+  
+  int8_t idx = findLatestRecord();
+  return idx >= 0;
+}
+
+bool loadFull(int16_t& hunger, int16_t& fun, int16_t& energy, int16_t& hp, uint32_t& ageSec, bool& dead) {
+  SaveDataV2 save;
+  EEPROM.get(V2_EEPROM_ADDR, save);
+  
+  if (memcmp(save.magic, "FISH", 4) == 0) {
+    if (save.version == 2) {
+      uint16_t computedChecksum = crc16_ccitt((const uint8_t*)&save, sizeof(SaveDataV2) - 2);
+      if (computedChecksum != save.checksum) {
+        return false;
+      }
+      
+      hunger = save.hunger;
+      fun = save.fun;
+      energy = save.energy;
+      hp = save.hp;
+      ageSec = save.ageSec;
+      dead = (save.dead != 0);
+      
+      lastV2Hunger = hunger;
+      lastV2Fun = fun;
+      lastV2Energy = energy;
+      lastV2Hp = hp;
+      lastV2AgeSec = ageSec;
+      lastV2Dead = dead;
+      
+      return true;
+    } else if (save.version == 1) {
+      int8_t idx = findLatestRecord();
+      if (idx >= 0) {
+        SaveRecord rec;
+        uint16_t addr = EEPROM_START + idx * sizeof(SaveRecord);
+        EEPROM.get(addr, rec);
+        
+        hunger = rec.hunger;
+        fun = rec.fun;
+        energy = rec.energy;
+        hp = 20;
+        ageSec = 0;
+        dead = false;
+        
+        lastV2Hunger = hunger;
+        lastV2Fun = fun;
+        lastV2Energy = energy;
+        lastV2Hp = hp;
+        lastV2AgeSec = ageSec;
+        lastV2Dead = dead;
+        
+        return true;
+      }
+    }
+  }
+  
+  return false;
+}
+
+void saveFullIfDue(int16_t hunger, int16_t fun, int16_t energy, int16_t hp, uint32_t ageSec, bool dead, bool eventSave) {
+  if (hunger == lastV2Hunger && fun == lastV2Fun && energy == lastV2Energy && 
+      hp == lastV2Hp && ageSec == lastV2AgeSec && dead == lastV2Dead) {
+    return;
+  }
+  
+  unsigned long now = millis();
+  unsigned long minInterval = eventSave ? 30000 : 60000;
+  
+  if (now - lastV2SaveMs < minInterval && lastV2SaveMs != 0) {
+    return;
+  }
+  
+  SaveDataV2 save;
+  memcpy(save.magic, "FISH", 4);
+  save.version = 2;
+  save.hunger = hunger;
+  save.fun = fun;
+  save.energy = energy;
+  save.hp = hp;
+  save.ageSec = ageSec;
+  save.dead = dead ? 1 : 0;
+  
+  save.checksum = crc16_ccitt((const uint8_t*)&save, sizeof(SaveDataV2) - 2);
+  
+  EEPROM.put(V2_EEPROM_ADDR, save);
+  
+  lastV2SaveMs = now;
+  lastV2Hunger = hunger;
+  lastV2Fun = fun;
+  lastV2Energy = energy;
+  lastV2Hp = hp;
+  lastV2AgeSec = ageSec;
+  lastV2Dead = dead;
+}
+
+void clearSave() {
+  SaveDataV2 save;
+  memset(&save, 0, sizeof(save));
+  EEPROM.put(V2_EEPROM_ADDR, save);
 }

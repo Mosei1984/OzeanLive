@@ -1,0 +1,154 @@
+#include "pause_menu.h"
+#include "gfx.h"
+#include "config.h"
+#include "pet.h"
+#include "eeprom_store.h"
+
+PauseChoice runPauseMenu()
+{
+    uint8_t selected = 0;
+    const uint8_t NUM_OPTIONS = 3;
+
+    bool btnLeftPressed = false;
+    bool btnRightPressed = false;
+    bool btnOkPressed = false;
+
+    int16_t maxHP = getMaxHP();
+
+    while (true)
+    {
+        tft.fillRect(30, 40, TFT_WIDTH - 60, TFT_HEIGHT - 80, 0x18C3);
+        tft.drawRect(30, 40, TFT_WIDTH - 60, TFT_HEIGHT - 80, 0xFFFF);
+
+        tft.setTextColor(0xFFE0);
+        tft.setTextSize(2);
+        tft.setCursor(80, 50);
+        tft.print("PAUSED");
+
+        tft.setTextColor(0xFFFF);
+        tft.setTextSize(1);
+        int16_t statsY = 72;
+        tft.setCursor(40, statsY);
+        tft.print("Hunger: ");
+        tft.print(pet.hunger);
+
+        tft.setCursor(40, statsY + 12);
+        tft.print("Fun: ");
+        tft.print(pet.fun);
+
+        tft.setCursor(40, statsY + 24);
+        tft.print("Energy: ");
+        tft.print(pet.energy);
+
+        tft.setCursor(40, statsY + 36);
+        tft.print("HP: ");
+        tft.print(pet.hp);
+        tft.print("/");
+        tft.print(maxHP);
+
+        const char *options[NUM_OPTIONS] = {"Resume", "Save & Resume", "Save & Exit"};
+        int16_t startY = 140;
+        int16_t spacing = 16;
+
+        tft.setTextSize(1);
+        for (uint8_t i = 0; i < NUM_OPTIONS; i++)
+        {
+            int16_t y = startY + i * spacing;
+
+            if (i == selected)
+            {
+                tft.setTextColor(0xFFE0);
+            }
+            else
+            {
+                tft.setTextColor(0xFFFF);
+            }
+
+            tft.setCursor(40, y);
+            if (i == selected)
+            {
+                tft.print("> ");
+            }
+            else
+            {
+                tft.print("  ");
+            }
+            tft.print(options[i]);
+        }
+
+        delay(100);
+
+        int sLeft = digitalRead(PIN_BTN_LEFT);
+        int sRight = digitalRead(PIN_BTN_RIGHT);
+        int sOk = digitalRead(PIN_BTN_OK);
+
+        if (sLeft == LOW && !btnLeftPressed)
+        {
+            btnLeftPressed = true;
+            if (selected == 0)
+            {
+                selected = NUM_OPTIONS - 1;
+            }
+            else
+            {
+                selected--;
+            }
+        }
+        else if (sLeft == HIGH)
+        {
+            btnLeftPressed = false;
+        }
+
+        if (sRight == LOW && !btnRightPressed)
+        {
+            btnRightPressed = true;
+            selected = (selected + 1) % NUM_OPTIONS;
+        }
+        else if (sRight == HIGH)
+        {
+            btnRightPressed = false;
+        }
+
+        if (sOk == LOW && !btnOkPressed)
+        {
+            btnOkPressed = true;
+
+            if (selected == PAUSE_SAVE_RESUME)
+            {
+                saveFullIfDue(pet.hunger, pet.fun, pet.energy, pet.hp, pet.ageSec, pet.dead, true);
+
+                tft.fillRect(40, TFT_HEIGHT - 40, TFT_WIDTH - 80, 20, 0x0000);
+                tft.setTextColor(0x07E0);
+                tft.setTextSize(1);
+                tft.setCursor(80, TFT_HEIGHT - 35);
+                tft.print("Saved!");
+                delay(800);
+
+                while (digitalRead(PIN_BTN_OK) == LOW)
+                    ;
+
+                return PAUSE_RESUME;
+            }
+            else if (selected == PAUSE_SAVE_EXIT)
+            {
+                saveFullIfDue(pet.hunger, pet.fun, pet.energy, pet.hp, pet.ageSec, pet.dead, true);
+
+                while (digitalRead(PIN_BTN_OK) == LOW)
+                    ;
+
+                return PAUSE_SAVE_EXIT;
+            }
+            else
+            {
+                while (digitalRead(PIN_BTN_OK) == LOW)
+                    ;
+
+                return PAUSE_RESUME;
+            }
+        }
+        else if (sOk == HIGH)
+        {
+            btnOkPressed = false;
+        }
+    }
+}

@@ -8,6 +8,10 @@
 #include "eeprom_store.h"
 #include "environment.h"
 
+static constexpr uint32_t LIFE_YEAR_SEC = 24ul*60*60;
+static constexpr uint32_t BAD_START_SEC = 3600;
+static constexpr uint32_t HP_LOSS_INTERVAL_SEC = 3600;
+
 // Globale Pet-Instanz
 PetStats pet;
 PetAction pendingAction = ACTION_NONE;
@@ -42,6 +46,14 @@ static uint8_t nextPoopAt = 5;
 static float actionTimer = 0.0f;
 static bool actionInProgress = false;
 
+// HP damage tracking
+static uint32_t hungerBadSec = 0;
+static uint32_t energyBadSec = 0;
+static uint32_t funBadSec = 0;
+static uint32_t hungerDmgAcc = 0;
+static uint32_t energyDmgAcc = 0;
+static uint32_t funDmgAcc = 0;
+
 // Parameter für "Steering"
 constexpr float FISH_MAX_SPEED = 60.0f;    // Pixel pro Sekunde
 constexpr float FISH_STEER_FORCE = 80.0f;  // wie schnell Richtung gewechselt wird
@@ -53,12 +65,21 @@ static void chooseNewTarget() {
   targetY = PLAY_AREA_Y + 20 + random(0, max(10, PLAY_AREA_H - 60));
 }
 
+int16_t getMaxHP() {
+  uint32_t years = pet.ageSec / LIFE_YEAR_SEC;
+  int16_t extra = (years / 5u) * 10;
+  return 20 + extra;
+}
+
 // Initialisiert Pet-Werte
 void initPet() {
   pet.hunger = 30;
   pet.fun    = 70;
   pet.energy = 80;
   pet.lastUpdateMs = millis();
+  pet.ageSec = 0;
+  pet.hp = getMaxHP();
+  pet.dead = false;
 
   // Startposition des Fisches in die Mitte legen
   fishX = PLAY_AREA_X + PLAY_AREA_W / 2.0f;
@@ -78,6 +99,8 @@ void initPet() {
 
 // Aktualisiert Pet-Werte in einfacher Simulationslogik
 void updatePetStats() {
+  if (pet.dead) return;
+
   // Handle time accumulation properly (even across millis wrap or long pauses)
   static uint32_t msAccum = 0;
   unsigned long now = millis();
@@ -87,6 +110,11 @@ void updatePetStats() {
   uint32_t ticks = msAccum / 1000;
   msAccum -= ticks * 1000;
   if (ticks) {
+    pet.ageSec += ticks;
+    
+    int16_t maxHP = getMaxHP();
+    if (pet.hp > maxHP) pet.hp = maxHP;
+    
     int h = pet.hunger + (int)ticks;
     int f = pet.fun    - (int)ticks;  // normal decay
     int e = pet.energy - (int)ticks;
@@ -100,7 +128,59 @@ void updatePetStats() {
     pet.hunger = (h > 100) ? 100 : h;
     pet.fun    = (f <   0) ?   0 : f;
     pet.energy = (e <   0) ?   0 : e;
-    saveStatsIfDue(pet.hunger, pet.fun, pet.energy, false);
+    
+    // HP damage logic
+    bool hungerBad = (pet.hunger >= 100);
+    bool energyBad = (pet.energy == 0);
+    bool funBad = (pet.fun == 0);
+    
+    if (hungerBad) {
+      hungerBadSec += ticks;
+      if (hungerBadSec > BAD_START_SEC) {
+        hungerDmgAcc += ticks;
+        if (hungerDmgAcc >= HP_LOSS_INTERVAL_SEC) {
+          pet.hp--;
+          hungerDmgAcc = 0;
+        }
+      }
+    } else {
+      hungerBadSec = 0;
+      hungerDmgAcc = 0;
+    }
+    
+    if (energyBad) {
+      energyBadSec += ticks;
+      if (energyBadSec > BAD_START_SEC) {
+        energyDmgAcc += ticks;
+        if (energyDmgAcc >= HP_LOSS_INTERVAL_SEC) {
+          pet.hp--;
+          energyDmgAcc = 0;
+        }
+      }
+    } else {
+      energyBadSec = 0;
+      energyDmgAcc = 0;
+    }
+    
+    if (funBad) {
+      funBadSec += ticks;
+      if (funBadSec > BAD_START_SEC) {
+        funDmgAcc += ticks;
+        if (funDmgAcc >= HP_LOSS_INTERVAL_SEC) {
+          pet.hp--;
+          funDmgAcc = 0;
+        }
+      }
+    } else {
+      funBadSec = 0;
+      funDmgAcc = 0;
+    }
+    
+    if (pet.hp <= 0) {
+      pet.dead = true;
+    }
+    
+    saveFullIfDue(pet.hunger, pet.fun, pet.energy, pet.hp, pet.ageSec, pet.dead, false);
   }
 }
 
@@ -340,7 +420,7 @@ void drawPetAnimated(float dtSec) {
   
   // Clear action after processing
   if (pendingAction != ACTION_NONE) {
-    saveStatsIfDue(pet.hunger, pet.fun, pet.energy, true);
+    saveFullIfDue(pet.hunger, pet.fun, pet.energy, pet.hp, pet.ageSec, pet.dead, true);
     pendingAction = ACTION_NONE;
   }
 
