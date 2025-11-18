@@ -41,9 +41,16 @@ enum PetAction {
 
 extern PetAction pendingAction;
 
+// Action in progress flag (blocks button input during animations)
+extern bool isActionInProgress();
+
 // globale Animationsphase (für Sinusbewegungen)
 extern float animPhase;
 
 // Velocity für Animator isFlipped()
 extern float fishVX;
 extern float fishVY;
+
+// Fish position getters for bubble system
+float getFishX();
+float getFishY();

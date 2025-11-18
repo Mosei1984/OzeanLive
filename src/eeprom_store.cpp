@@ -1,6 +1,10 @@
 #include "eeprom_store.h"
 #include <EEPROM.h>
 
+#ifdef ESP32
+#define EEPROM_SIZE 1024
+#endif
+
 struct SaveRecord {
   uint32_t magic;
   uint8_t version;
@@ -108,6 +112,11 @@ void writeNextRecord(int16_t hunger, int16_t fun, int16_t energy) {
   uint16_t addr = EEPROM_START + nextIdx * sizeof(SaveRecord);
   EEPROM.put(addr, rec);
   
+#ifdef ESP32
+  EEPROM.commit();
+  Serial.println("[SAVE] V1 record written to EEPROM");
+#endif
+  
   lastSeq = rec.seq;
   lastIndex = nextIdx;
   lastSaveMs = millis();
@@ -141,7 +150,7 @@ void saveStatsIfDue(int16_t hunger, int16_t fun, int16_t energy, bool eventSave)
   }
   
   unsigned long now = millis();
-  unsigned long minInterval = eventSave ? 30000 : 60000;
+  unsigned long minInterval = eventSave ? 30000 : 600000; // 30s for events, 10min for auto
   
   if (now - lastSaveMs < minInterval && lastSaveMs != 0) {
     return;
@@ -224,7 +233,7 @@ void saveFullIfDue(int16_t hunger, int16_t fun, int16_t energy, int16_t hp, uint
   }
   
   unsigned long now = millis();
-  unsigned long minInterval = eventSave ? 30000 : 60000;
+  unsigned long minInterval = eventSave ? 30000 : 600000; // 30s for events, 10min for auto
   
   if (now - lastV2SaveMs < minInterval && lastV2SaveMs != 0) {
     return;
@@ -244,6 +253,16 @@ void saveFullIfDue(int16_t hunger, int16_t fun, int16_t energy, int16_t hp, uint
   
   EEPROM.put(V2_EEPROM_ADDR, save);
   
+#ifdef ESP32
+  EEPROM.commit();
+  Serial.print("[SAVE] V2 full save written - HP: ");
+  Serial.print(hp);
+  Serial.print(", Age: ");
+  Serial.print(ageSec);
+  Serial.print(", Dead: ");
+  Serial.println(dead);
+#endif
+  
   lastV2SaveMs = now;
   lastV2Hunger = hunger;
   lastV2Fun = fun;
@@ -257,4 +276,9 @@ void clearSave() {
   SaveDataV2 save;
   memset(&save, 0, sizeof(save));
   EEPROM.put(V2_EEPROM_ADDR, save);
+  
+#ifdef ESP32
+  EEPROM.commit();
+  Serial.println("[SAVE] Save cleared");
+#endif
 }

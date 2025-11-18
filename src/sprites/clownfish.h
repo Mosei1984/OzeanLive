@@ -10,6 +10,9 @@ const uint16_t CLOWNFISH_HEIGHT = 25;
 // Base sprite (backward compatibility)
 extern const uint16_t clownfishBitmap[] PROGMEM;
 
+// Dead fish sprite
+extern const uint16_t nemodeadBitmap[] PROGMEM;
+
 // Animation Clips für alle States
 extern const AnimationClip CLIP_IDLE;
 extern const AnimationClip CLIP_MOVING;

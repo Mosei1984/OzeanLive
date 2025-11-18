@@ -3,7 +3,11 @@
 #include "sprite_common.h"
 #include "sprites/dirt_spots.h"
 #include "particles.h"
+#include "environment.h"
 #include <math.h>
+
+extern GFXcanvas16* bgCanvas;
+extern bool gNoCanvas;
 
 DirtSpot gDirtSpots[MAX_DIRT_SPOTS];
 
@@ -27,6 +31,33 @@ static bool shouldDrawDirtPixel(int16_t x, int16_t y, uint8_t level) {
   return pat == 0;
 }
 
+static void drawDirtToCanvas(uint8_t spotIndex) {
+  if (!bgCanvas || gNoCanvas) return;
+  if (!gDirtSpots[spotIndex].active) return;
+  
+  const uint16_t* sprite = getDirtSprite(gDirtSpots[spotIndex].kind);
+  int16_t x = gDirtSpots[spotIndex].x;
+  int16_t y = gDirtSpots[spotIndex].y;
+  uint8_t stippleLevel = getStippleLevel(gDirtSpots[spotIndex].strength);
+  
+  for (int16_t dy = 0; dy < DIRT_SPOT_SIZE; dy++) {
+    for (int16_t dx = 0; dx < DIRT_SPOT_SIZE; dx++) {
+      int16_t px = x + dx;
+      int16_t py = y + dy;
+      
+      if (px < 0 || px >= TFT_WIDTH || py < 0 || py >= TFT_HEIGHT) continue;
+      
+      uint16_t color = pgm_read_word(&sprite[dy * DIRT_SPOT_SIZE + dx]);
+      
+      if (isTransparent16(color)) continue;
+      
+      if (shouldDrawDirtPixel(px, py, stippleLevel)) {
+        bgCanvas->drawPixel(px, py, color);
+      }
+    }
+  }
+}
+
 void initDirt() {
   for (uint8_t i = 0; i < MAX_DIRT_SPOTS; i++) {
     gDirtSpots[i].active = false;
@@ -46,8 +77,14 @@ void updateDirt(float deltaTime) {
     
     // Gradually increase strength over time (max 100)
     if (gDirtSpots[i].strength < 100) {
+      uint8_t oldStrength = gDirtSpots[i].strength;
       float growthRate = 2.0f; // units per second
       gDirtSpots[i].strength = min(100, gDirtSpots[i].strength + (uint8_t)(growthRate * deltaTime));
+      
+      // Redraw to canvas when strength changes
+      if (gDirtSpots[i].strength != oldStrength) {
+        drawDirtToCanvas(i);
+      }
     }
   }
   
@@ -70,6 +107,9 @@ void updateDirt(float deltaTime) {
         int16_t margin = 20;
         gDirtSpots[i].x = PLAY_AREA_X + margin + random(0, max(10, PLAY_AREA_W - margin * 2));
         gDirtSpots[i].y = PLAY_AREA_Y + margin + random(0, max(10, PLAY_AREA_H - 50 - margin));
+        
+        // Draw to canvas immediately
+        drawDirtToCanvas(i);
         break;
       }
     }
@@ -77,51 +117,25 @@ void updateDirt(float deltaTime) {
 }
 
 void drawDirt() {
-  for (uint8_t i = 0; i < MAX_DIRT_SPOTS; i++) {
-    if (!gDirtSpots[i].active) continue;
-    
-    uint8_t stippleLevel = getStippleLevel(gDirtSpots[i].strength);
-    const uint16_t* sprite = getDirtSprite(gDirtSpots[i].kind);
-    
-    int16_t x = gDirtSpots[i].x;
-    int16_t y = gDirtSpots[i].y;
-    
-    // Draw dirt spot with stipple pattern based on strength
-    for (int16_t dy = 0; dy < DIRT_SPOT_SIZE; dy++) {
-      for (int16_t dx = 0; dx < DIRT_SPOT_SIZE; dx++) {
-        int16_t px = x + dx;
-        int16_t py = y + dy;
-        
-        // Check bounds
-        if (px < 0 || px >= TFT_WIDTH || py < 0 || py >= TFT_HEIGHT) continue;
-        
-        // Get sprite pixel
-        uint16_t color = pgm_read_word(&sprite[dy * DIRT_SPOT_SIZE + dx]);
-        
-        // Skip transparent pixels
-        if (color == TRANSPARENT_COLOR) continue;
-        
-        // Apply stipple pattern
-        if (shouldDrawDirtPixel(px, py, stippleLevel)) {
-          tft.drawPixel(px, py, color);
-        }
-      }
-    }
-  }
+  // Dirt is now drawn directly to bgCanvas when spawned/updated
+  // This function is kept for compatibility but does nothing
 }
 
 void cleanDirt() {
   for (uint8_t i = 0; i < MAX_DIRT_SPOTS; i++) {
     if (!gDirtSpots[i].active) continue;
     
-    // Restore region first to erase existing dirt
-    restoreRegion(gDirtSpots[i].x, gDirtSpots[i].y, DIRT_SPOT_SIZE, DIRT_SPOT_SIZE);
-    
     // Remove all dirt spots completely
     gDirtSpots[i].active = false;
     spawnDirtPuff(gDirtSpots[i].x + DIRT_SPOT_SIZE / 2, 
                   gDirtSpots[i].y + DIRT_SPOT_SIZE / 2, 
                   6);
+  }
+  
+  // Redraw background canvas to remove dirt
+  if (bgCanvas && !gNoCanvas) {
+    bgCanvas->fillScreen(COLOR_BG);
+    drawEnvironmentToCanvas(bgCanvas);
   }
 }
 
@@ -151,6 +165,9 @@ void spawnPoopSpot(int16_t x) {
       gDirtSpots[i].y = constrain(poopY,
                                   (int16_t)(groundY - DIRT_SPOT_SIZE - 10),
                                   (int16_t)(groundY - DIRT_SPOT_SIZE));
+      
+      // Draw to canvas immediately
+      drawDirtToCanvas(i);
       break;
     }
   }

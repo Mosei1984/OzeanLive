@@ -38,6 +38,12 @@ static float swimPhase = 0.0f;
 static float noiseAccum = 0.0f;
 static float noiseValue = 0.0f;
 
+// Idle pause system (fish rests randomly at waypoints)
+static bool isIdlePausing = false;
+static float idlePauseTimer = 0.0f;
+static float idlePauseDuration = 0.0f;
+static float timeSinceLastPause = 0.0f;
+
 // Poop counter for feeding mechanic
 static uint8_t feedCount = 0;
 static uint8_t nextPoopAt = 5;
@@ -45,6 +51,11 @@ static uint8_t nextPoopAt = 5;
 // Animation duration tracking
 static float actionTimer = 0.0f;
 static bool actionInProgress = false;
+
+// Public function to check if action is in progress
+bool isActionInProgress() {
+  return actionInProgress;
+}
 
 // HP damage tracking
 static uint32_t hungerBadSec = 0;
@@ -55,14 +66,14 @@ static uint32_t energyDmgAcc = 0;
 static uint32_t funDmgAcc = 0;
 
 // Parameter für "Steering"
-constexpr float FISH_MAX_SPEED = 60.0f;    // Pixel pro Sekunde
-constexpr float FISH_STEER_FORCE = 80.0f;  // wie schnell Richtung gewechselt wird
+constexpr float FISH_MAX_SPEED = 20.0f;    // Pixel pro Sekunde (reduziert von 60)
+constexpr float FISH_STEER_FORCE = 15.0f;  // wie schnell Richtung gewechselt wird (reduziert von 80)
 constexpr float FISH_ARRIVE_RADIUS = 10.0f;
 
 // Hilfsfunktion: neuen Wegpunkt wählen (zufällig im Aquarium)
 static void chooseNewTarget() {
-  targetX = PLAY_AREA_X + 40 + random(0, max(10, PLAY_AREA_W - 80));
-  targetY = PLAY_AREA_Y + 20 + random(0, max(10, PLAY_AREA_H - 60));
+  targetX = PLAY_AREA_X + 60 + random(0, max(10, PLAY_AREA_W - 80));
+  targetY = PLAY_AREA_Y + 40 + random(0, max(10, PLAY_AREA_H - 60));
 }
 
 int16_t getMaxHP() {
@@ -73,6 +84,10 @@ int16_t getMaxHP() {
 
 // Initialisiert Pet-Werte
 void initPet() {
+#ifdef DEBUG_GAME_LOGIC
+  Serial.println("[PET] Initializing pet...");
+#endif
+  
   pet.hunger = 30;
   pet.fun    = 70;
   pet.energy = 80;
@@ -87,7 +102,7 @@ void initPet() {
   fishVX = 0.0f;
   fishVY = 0.0f;
 
-  nextPoopAt = random(5, 8);
+  nextPoopAt = random(2, 10);
   
   chooseNewTarget();
   
@@ -95,6 +110,16 @@ void initPet() {
   gAnimator.currentClip = &CLIP_IDLE;
   
   petInitDone = true;
+  
+#ifdef DEBUG_GAME_LOGIC
+  Serial.print("[PET] Pet initialized - HP: ");
+  Serial.print(pet.hp);
+  Serial.print(", Position: (");
+  Serial.print((int)fishX);
+  Serial.print(", ");
+  Serial.print((int)fishY);
+  Serial.println(")");
+#endif
 }
 
 // Aktualisiert Pet-Werte in einfacher Simulationslogik
@@ -102,42 +127,68 @@ void updatePetStats() {
   if (pet.dead) return;
 
   // Handle time accumulation properly (even across millis wrap or long pauses)
-  static uint32_t msAccum = 0;
+  static uint32_t ageAccum = 0;
+  static uint32_t statAccum = 0; // Accumulator for hunger/fun/energy (2 minute intervals)
+  static uint32_t sleepAccum = 0; // Accumulator for sleep energy (10 second intervals)
   unsigned long now = millis();
   uint32_t dt = (uint32_t)(now - pet.lastUpdateMs);
   pet.lastUpdateMs = now;
-  msAccum = min(msAccum + dt, 60000u); // cap at 60s
-  uint32_t ticks = msAccum / 1000;
-  msAccum -= ticks * 1000;
-  if (ticks) {
-    pet.ageSec += ticks;
+  
+  ageAccum = min(ageAccum + dt, 60000u); // cap at 60s
+  statAccum = min(statAccum + dt, 240000u); // cap at 4 minutes
+  sleepAccum = min(sleepAccum + dt, 60000u); // cap at 60s
+  
+  // Age updates every second
+  uint32_t ageTicks = ageAccum / 1000;
+  ageAccum -= ageTicks * 1000;
+  
+  // Stats update every 2 minutes (120 seconds = 120000ms)
+  uint32_t statTicks = statAccum / 120000;
+  statAccum -= statTicks * 120000;
+  
+  // Sleep energy updates every 10 seconds (10000ms)
+  uint32_t sleepTicks = sleepAccum / 10000;
+  sleepAccum -= sleepTicks * 10000;
+  
+  if (ageTicks) {
+    pet.ageSec += ageTicks;
     
     int16_t maxHP = getMaxHP();
     if (pet.hp > maxHP) pet.hp = maxHP;
-    
-    int h = pet.hunger + (int)ticks;
-    int f = pet.fun    - (int)ticks;  // normal decay
-    int e = pet.energy - (int)ticks;
+  }
+  
+  if (statTicks) {
+    int h = pet.hunger + (int)statTicks; // +1 every 2 minutes
+    int f = pet.fun    - (int)statTicks; // -1 every 2 minutes
+    int e = pet.energy - (int)statTicks; // -1 every 2 minutes
     
     // Dirt accelerates fun decay (double speed when dirty)
     uint8_t dirt = getTotalDirtLevel();
     if (dirt > 0) {
-      f -= (int)ticks;  // additional decay
+      f -= (int)statTicks;  // additional decay
     }
     
     pet.hunger = (h > 100) ? 100 : h;
     pet.fun    = (f <   0) ?   0 : f;
     pet.energy = (e <   0) ?   0 : e;
-    
-    // HP damage logic
+  }
+  
+  // Sleep energy regeneration (+1 every 10 seconds while sleeping)
+  if (sleepTicks && gAnimator.currentState == ANIM_SLEEPING) {
+    int e = pet.energy + (int)sleepTicks;
+    pet.energy = (e > 100) ? 100 : e;
+  }
+  
+  // HP damage logic (checked every second via ageTicks)
+  if (ageTicks) {
     bool hungerBad = (pet.hunger >= 100);
     bool energyBad = (pet.energy == 0);
     bool funBad = (pet.fun == 0);
     
     if (hungerBad) {
-      hungerBadSec += ticks;
+      hungerBadSec += ageTicks;
       if (hungerBadSec > BAD_START_SEC) {
-        hungerDmgAcc += ticks;
+        hungerDmgAcc += ageTicks;
         if (hungerDmgAcc >= HP_LOSS_INTERVAL_SEC) {
           pet.hp--;
           hungerDmgAcc = 0;
@@ -149,9 +200,9 @@ void updatePetStats() {
     }
     
     if (energyBad) {
-      energyBadSec += ticks;
+      energyBadSec += ageTicks;
       if (energyBadSec > BAD_START_SEC) {
-        energyDmgAcc += ticks;
+        energyDmgAcc += ageTicks;
         if (energyDmgAcc >= HP_LOSS_INTERVAL_SEC) {
           pet.hp--;
           energyDmgAcc = 0;
@@ -163,9 +214,9 @@ void updatePetStats() {
     }
     
     if (funBad) {
-      funBadSec += ticks;
+      funBadSec += ageTicks;
       if (funBadSec > BAD_START_SEC) {
-        funDmgAcc += ticks;
+        funDmgAcc += ageTicks;
         if (funDmgAcc >= HP_LOSS_INTERVAL_SEC) {
           pet.hp--;
           funDmgAcc = 0;
@@ -213,6 +264,25 @@ static void updateFishMovement(float dtSec) {
     return;
   }
 
+  // Track time since last pause
+  if (!isIdlePausing) {
+    timeSinceLastPause += dtSec;
+  }
+  
+  // Handle idle pausing at waypoints
+  if (isIdlePausing) {
+    idlePauseTimer += dtSec;
+    fishVX *= 0.9f; // Gradually stop
+    fishVY *= 0.9f;
+    
+    if (idlePauseTimer >= idlePauseDuration) {
+      isIdlePausing = false;
+      idlePauseTimer = 0.0f;
+      timeSinceLastPause = 0.0f; // Reset timer after pause
+    }
+    return; // Stay idle during pause
+  }
+
   // Richtung zum Ziel
   float dx = targetX - fishX;
   float dy = targetY - fishY;
@@ -224,11 +294,34 @@ static void updateFishMovement(float dtSec) {
   if (dist < FISH_ARRIVE_RADIUS) {
     // Neuer Wegpunkt, wenn nahe genug (aber nicht beim Schlafen)
     if (!sleeping) {
-      chooseNewTarget();
+      // Calculate minimum pause interval based on energy
+      // Energy 100% -> 120s (2 minutes) between pauses
+      // Energy 20%  -> 30s between pauses
+      float energyNorm = pet.energy / 100.0f; // 0.0 to 1.0
+      float minPauseInterval = 30.0f + (energyNorm * 90.0f); // 30s to 120s
+      
+      // Check if enough time has passed since last pause
+      if (timeSinceLastPause >= minPauseInterval) {
+        // Start idle pause
+        isIdlePausing = true;
+        idlePauseTimer = 0.0f;
+        // Duration: 1-3 seconds, longer when tired
+        idlePauseDuration = 3.0f + (random(0, 500) / 100.0f) * (1.0f - energyNorm);
+#ifdef DEBUG_GAME_LOGIC
+        Serial.print("[PET] Idle pause for ");
+        Serial.print(idlePauseDuration);
+        Serial.print("s (next pause in ");
+        Serial.print(minPauseInterval);
+        Serial.println("s)");
+#endif
+      } else {
+        // Continue to next waypoint
+        chooseNewTarget();
+      }
     } else {
       // Gently settle at anemone
-      fishVX *= 0.85f;
-      fishVY *= 0.85f;
+      fishVX *= 0.55f;
+      fishVY *= 0.65f;
     }
   } else if (dist > 0.1f) {
     // Normalisiere Richtung
@@ -313,33 +406,78 @@ static void updateFishMovement(float dtSec) {
 
 // Zeichnet Fisch + leichte Sinus-Animation
 void drawPetAnimated(float dtSec) {
-  updateFishMovement(dtSec);
-  updateAnimator(dtSec);
+  FramePhase phase = getFramePhase();
+  
+  // COLLECT phase: Update physics and register dirty rects
+  if (phase == PHASE_COLLECT) {
+    updateFishMovement(dtSec);
+    updateAnimator(dtSec);
 
-  // Handle action timers for EATING (10s) and POOPING (3s)
-  if (actionInProgress) {
-    actionTimer += dtSec;
+    // Handle action timers for EATING (5s), PLAYING (3s) and POOPING (3s)
+    if (dtSec > 0 && actionInProgress) {
+      actionTimer += dtSec;
+    
+#ifdef DEBUG_GAME_LOGIC
+    static float lastLogTimer = -1.0f;
+    if ((int)actionTimer != (int)lastLogTimer) {
+      Serial.print("[PET] Action timer: ");
+      Serial.print(actionTimer);
+      Serial.print("s (state: ");
+      Serial.print(gAnimator.currentState);
+      Serial.println(")");
+      lastLogTimer = actionTimer;
+    }
+#endif
     
     // Check if action duration completed
-    bool actionComplete = false;
-    if (gAnimator.currentState == ANIM_EATING && actionTimer >= 10.0f) {
-      actionComplete = true;
-      
+    if (gAnimator.currentState == ANIM_EATING && actionTimer >= 5.0f) {
       // Check if we should poop after eating
       if (feedCount >= nextPoopAt) {
+#ifdef DEBUG_GAME_LOGIC
+        Serial.print("[PET] Feed count reached ");
+        Serial.print(feedCount);
+        Serial.print("/");
+        Serial.print(nextPoopAt);
+        Serial.println(" - Triggering poop!");
+#endif
         pendingAction = ACTION_POOP;
         actionInProgress = false;
         actionTimer = 0.0f;
+      } else {
+#ifdef DEBUG_GAME_LOGIC
+        Serial.println("[PET] Eating finished - Return to idle");
+#endif
+        // Just finish eating
+        actionInProgress = false;
+        actionTimer = 0.0f;
+        requestTransition(ANIM_IDLE, 0.25f);
       }
     } else if (gAnimator.currentState == ANIM_POOPING && actionTimer >= 3.0f) {
-      actionComplete = true;
-    }
-    
-    // Resume normal movement after action completes
-    if (actionComplete) {
+#ifdef DEBUG_GAME_LOGIC
+      Serial.println("[PET] Pooping finished - Return to idle");
+#endif
+      // Finish pooping
       actionInProgress = false;
       actionTimer = 0.0f;
       requestTransition(ANIM_IDLE, 0.25f);
+    } else if (gAnimator.currentState == ANIM_PLAYING && actionTimer >= 3.0f) {
+#ifdef DEBUG_GAME_LOGIC
+      Serial.println("[PET] Playing finished - Return to idle");
+#endif
+      // Finish playing
+      actionInProgress = false;
+      actionTimer = 0.0f;
+      requestTransition(ANIM_IDLE, 0.25f);
+    } else if (gAnimator.currentState == ANIM_SLEEPING) {
+      // Auto-wakeup when energy reaches 100%
+      if (pet.energy >= 100) {
+#ifdef DEBUG_GAME_LOGIC
+        Serial.println("[PET] Energy 100% - Auto wakeup from sleep!");
+#endif
+        actionInProgress = false;
+        actionTimer = 0.0f;
+        requestTransition(ANIM_IDLE, 0.25f);
+      }
     }
   }
 
@@ -347,9 +485,16 @@ void drawPetAnimated(float dtSec) {
   switch (pendingAction) {
     case ACTION_FEED:
       if (!actionInProgress) {
+#ifdef DEBUG_GAME_LOGIC
+        Serial.print("[PET] Action: FEEDING - Starting eating animation (count: ");
+        Serial.print(feedCount + 1);
+        Serial.print("/");
+        Serial.print(nextPoopAt);
+        Serial.println(")");
+#endif
         requestTransition(ANIM_EATING, 0.25f);
-        pet.hunger = max(0, pet.hunger - 20);
-        pet.fun = min(100, pet.fun + 5);
+        pet.hunger = max(0, pet.hunger - 5);
+        pet.fun = min(100, pet.fun + 3);
         feedCount++;
         actionInProgress = true;
         actionTimer = 0.0f;
@@ -357,23 +502,40 @@ void drawPetAnimated(float dtSec) {
       break;
     case ACTION_POOP:
       if (!actionInProgress) {
+#ifdef DEBUG_GAME_LOGIC
+        Serial.println("[PET] Action: POOPING - Spawning dirt spot");
+#endif
         requestTransition(ANIM_POOPING, 0.25f);
         spawnPoopSpot((int16_t)fishX);
         feedCount = 0;
-        nextPoopAt = random(5, 8);
+        nextPoopAt = random(3, 10);
+#ifdef DEBUG_GAME_LOGIC
+        Serial.print("[PET] Poop done - Reset counter, next poop at ");
+        Serial.println(nextPoopAt);
+#endif
         actionInProgress = true;
         actionTimer = 0.0f;
       }
       break;
     case ACTION_PLAY:
+#ifdef DEBUG_GAME_LOGIC
+      Serial.println("[PET] Action: PLAYING - Starting play animation");
+#endif
       requestTransition(ANIM_PLAYING, 0.25f);
       // No particles needed - playing frame has hearts built-in
-      pet.fun += 20;
+      pet.fun += 25;
       if (pet.fun > 100) pet.fun = 100;
-      pet.energy -= 5;
+      pet.energy -= 15;
       if (pet.energy < 0) pet.energy = 0;
+      
+      // Start play action (3 second animation)
+      actionInProgress = true;
+      actionTimer = 0.0f;
       break;
     case ACTION_REST:
+#ifdef DEBUG_GAME_LOGIC
+      Serial.println("[PET] Action: SLEEPING - Going to anemone");
+#endif
       requestTransition(ANIM_SLEEPING, 0.25f);
       // No particles needed - sleeping frame has ZZZ built-in
       {
@@ -382,9 +544,13 @@ void drawPetAnimated(float dtSec) {
         targetX = anemX;
         targetY = anemY;
       }
-      pet.energy = min(100, pet.energy + 20);
-      pet.hunger = min(100, pet.hunger + 5);
-      pet.fun = min(100, pet.fun + 5);  // slight fun boost
+      pet.energy = min(100, pet.energy + 10);
+      pet.hunger = min(100, pet.hunger + 2);
+      pet.fun = min(100, pet.fun + 2);  // slight fun boost
+      
+      // Start sleep action (will be ended by auto-wakeup logic)
+      actionInProgress = true;
+      actionTimer = 0.0f;
       break;
     case ACTION_CLEAN:
       {
@@ -393,7 +559,7 @@ void drawPetAnimated(float dtSec) {
           requestTransition(ANIM_MOVING, 0.25f);
           spawnDirtPuff(fishX, fishY, 12);
           cleanDirt();
-          pet.fun = min(100, pet.fun + 15);  // instant fun boost
+          pet.fun = min(100, pet.fun + 5);  // instant fun boost
         }
       }
       break;
@@ -407,11 +573,19 @@ void drawPetAnimated(float dtSec) {
           targetY = anemY;
         }
         
-        // Hysteresis to prevent animation thrashing at speed boundary
+        // Animation state machine based on speed and idle pause
         float speed = sqrtf(fishVX * fishVX + fishVY * fishVY);
-        if (gAnimator.currentState == ANIM_IDLE && speed > 12.0f) {
+        
+        // If pausing at waypoint, transition to idle (but not during actions)
+        if (isIdlePausing && !actionInProgress) {
+          if (gAnimator.currentState != ANIM_IDLE) {
+            requestTransition(ANIM_IDLE, 0.3f);
+          }
+        }
+        // Otherwise use speed-based animation with hysteresis
+        else if (!actionInProgress && gAnimator.currentState == ANIM_IDLE && speed > 12.0f) {
           requestTransition(ANIM_MOVING, 0.2f);
-        } else if (gAnimator.currentState == ANIM_MOVING && speed < 8.0f) {
+        } else if (!actionInProgress && gAnimator.currentState == ANIM_MOVING && speed < 8.0f) {
           requestTransition(ANIM_IDLE, 0.2f);
         }
       }
@@ -424,37 +598,75 @@ void drawPetAnimated(float dtSec) {
     pendingAction = ACTION_NONE;
   }
 
-  // Speed-dependent tail movement using swimPhase
-  float speedNorm = sqrtf(fishVX*fishVX + fishVY*fishVY) / FISH_MAX_SPEED;
-  float swingAmp = 3.0f + speedNorm * 3.0f;
-  float bobAmp = 2.0f + speedNorm * 2.0f;
-  
-  // Scale animation amplitude during transitions, but keep motion smooth (0.4 -> 1.0)
-  float ampScale = (gAnimator.transitionProgress < 1.0f) 
-                   ? (0.4f + 0.6f * gAnimator.transitionProgress)
-                   : 1.0f;
-  float swing = sinf(swimPhase) * swingAmp * ampScale;
-  float bob = sinf(swimPhase * 0.7f) * bobAmp * ampScale;
+    // Speed-dependent tail movement using swimPhase
+    float speedNorm = sqrtf(fishVX*fishVX + fishVY*fishVY) / FISH_MAX_SPEED;
+    float swingAmp = 3.0f + speedNorm * 3.0f;
+    float bobAmp = 2.0f + speedNorm * 2.0f;
+    
+    // Scale animation amplitude during transitions, but keep motion smooth (0.4 -> 1.0)
+    float ampScale = (gAnimator.transitionProgress < 1.0f) 
+                     ? (0.3f + 0.7f * gAnimator.transitionProgress)
+                     : 1.0f;
+    float swing = sinf(swimPhase) * swingAmp * ampScale;
+    float bob = sinf(swimPhase * 0.8f) * bobAmp * ampScale;
+    
+    // Add chewing wobble during EATING animation (4 Hz up-down motion)
+    if (gAnimator.currentState == ANIM_EATING && actionInProgress) {
+      float chewPhase = actionTimer * 4.0f * 2.0f * PI; // 4 Hz wobble
+      bob += sinf(chewPhase) * 3.0f; // 3 pixel vertical wobble
+    }
 
-  const uint16_t* frame = getCurrentFrame();
-  
-  // Guard against null frame (shouldn't happen, but prevents crash)
-  if (!frame) return;
-  
-  bool flip = isFlipped();
+    int16_t x = static_cast<int16_t>(fishX + swing - CLOWNFISH_WIDTH / 2);
+    int16_t y = static_cast<int16_t>(fishY + bob - CLOWNFISH_HEIGHT / 2);
 
-  int16_t x = static_cast<int16_t>(fishX + swing - CLOWNFISH_WIDTH / 2);
-  int16_t y = static_cast<int16_t>(fishY + bob - CLOWNFISH_HEIGHT / 2);
+    // Clamp to play area to prevent UI ghosting
+    x = constrain(x, (int16_t)PLAY_AREA_X, (int16_t)(PLAY_AREA_X + PLAY_AREA_W - CLOWNFISH_WIDTH));
+    y = constrain(y, (int16_t)PLAY_AREA_Y, (int16_t)(PLAY_AREA_Y + PLAY_AREA_H - CLOWNFISH_HEIGHT));
 
-  drawSpriteOptimized(frame, CLOWNFISH_WIDTH, CLOWNFISH_HEIGHT, x, y, flip);
+    // Register dirty rect for fish (current + previous position)
+    addDirtyRectPair(x, y, CLOWNFISH_WIDTH, CLOWNFISH_HEIGHT, prevFishDrawX, prevFishDrawY);
+  }
+  // DRAW phase: Draw fish and commit position
+  else if (phase == PHASE_DRAW) {
+    // Speed-dependent tail movement using swimPhase
+    float speedNorm = sqrtf(fishVX*fishVX + fishVY*fishVY) / FISH_MAX_SPEED;
+    float swingAmp = 3.0f + speedNorm * 3.0f;
+    float bobAmp = 2.0f + speedNorm * 2.0f;
+    
+    float ampScale = (gAnimator.transitionProgress < 1.0f) 
+                     ? (0.4f + 0.6f * gAnimator.transitionProgress)
+                     : 1.0f;
+    float swing = sinf(swimPhase) * swingAmp * ampScale;
+    float bob = sinf(swimPhase * 0.7f) * bobAmp * ampScale;
+    
+    if (gAnimator.currentState == ANIM_EATING && actionInProgress) {
+      float chewPhase = actionTimer * 4.0f * 2.0f * PI;
+      bob += sinf(chewPhase) * 3.0f;
+    }
 
-  prevFishDrawX = x;
-  prevFishDrawY = y;
+    const uint16_t* frame = getCurrentFrame();
+    bool flip = isFlipped();
+
+    int16_t x = static_cast<int16_t>(fishX + swing - CLOWNFISH_WIDTH / 2);
+    int16_t y = static_cast<int16_t>(fishY + bob - CLOWNFISH_HEIGHT / 2);
+
+    x = constrain(x, (int16_t)PLAY_AREA_X, (int16_t)(PLAY_AREA_X + PLAY_AREA_W - CLOWNFISH_WIDTH));
+    y = constrain(y, (int16_t)PLAY_AREA_Y, (int16_t)(PLAY_AREA_Y + PLAY_AREA_H - CLOWNFISH_HEIGHT));
+
+    drawSpriteOptimized(frame, CLOWNFISH_WIDTH, CLOWNFISH_HEIGHT, x, y, flip);
+
+    // Commit current position for next frame
+    prevFishDrawX = x;
+    prevFishDrawY = y;
+  }
 }
 
 void restorePetRegion() {
   if (prevFishDrawX >= 0) {
-    int16_t margin = 8;
+#ifdef DEBUG_GRAPHICS
+    Serial.print("[FISH-RESTORE] ");
+#endif
+    int16_t margin = 1; // Reduced from 8 - only need small margin for swing/bob
     int16_t rx = max((int16_t)PLAY_AREA_X, (int16_t)(prevFishDrawX - margin));
     int16_t ry = max((int16_t)PLAY_AREA_Y, (int16_t)(prevFishDrawY - margin));
     int16_t rw = min((int16_t)(CLOWNFISH_WIDTH + margin * 2), (int16_t)(PLAY_AREA_X + PLAY_AREA_W - rx));
@@ -462,5 +674,12 @@ void restorePetRegion() {
     if (rw > 0 && rh > 0) {
       restoreRegion(rx, ry, rw, rh);
     }
+    
+    // Invalidate after restore to prevent double-restore
+    prevFishDrawX = -1;
+    prevFishDrawY = -1;
   }
 }
+
+float getFishX() { return fishX; }
+float getFishY() { return fishY; }

@@ -1,4 +1,5 @@
 #include "menu.h"
+#include "buttons.h"
 
 // Interaktives Menü: 4 Einträge (Feed, Play, Rest, Clean)
 enum MenuItem {
@@ -11,40 +12,40 @@ enum MenuItem {
 static MenuItem currentItem = MENU_FEED;
 static MenuItem lastDrawnItem = (MenuItem)255; // Sentinel to force initial draw
 
-// Button-Zustände (Entprellung)
-static int lastBtnLeftState  = HIGH;
-static int lastBtnOkState    = HIGH;
-static int lastBtnRightState = HIGH;
-
 static bool btnLeftPressed  = false;
 static bool btnOkPressed    = false;
 static bool btnRightPressed = false;
 
-static unsigned long lastBtnReadMs = 0;
-constexpr unsigned long DEBOUNCE_MS = 40;
-
-// interne Helfer: Buttons lesen
 static void readButtons() {
-  unsigned long now = millis();
-  if (now - lastBtnReadMs < DEBOUNCE_MS) return;
-  lastBtnReadMs = now;
-
-  int sLeft  = digitalRead(PIN_BTN_LEFT);
-  int sOk    = digitalRead(PIN_BTN_OK);
-  int sRight = digitalRead(PIN_BTN_RIGHT);
-
-  btnLeftPressed  = (lastBtnLeftState  == HIGH && sLeft  == LOW);
-  btnOkPressed    = (lastBtnOkState    == HIGH && sOk    == LOW);
-  btnRightPressed = (lastBtnRightState == HIGH && sRight == LOW);
-
-  lastBtnLeftState  = sLeft;
-  lastBtnOkState    = sOk;
-  lastBtnRightState = sRight;
+  Buttons.poll();
+  bool l = false, o = false, r = false;
+  Buttons.getAndClearPressed(l, o, r);
+  btnLeftPressed = l;
+  btnOkPressed = o;
+  btnRightPressed = r;
 }
 
 // Menülogik: Auswahl verschieben & Aktionen auslösen
 void updateMenuLogic() {
   readButtons();
+  
+  // Block input during animations (EATING, POOPING, PLAYING, SLEEPING, etc.)
+  if (isActionInProgress()) {
+#ifdef DEBUG_BUTTONS
+    static bool blockedMessageShown = false;
+    if (!blockedMessageShown && (btnLeftPressed || btnRightPressed || btnOkPressed)) {
+      Serial.println("[MENU] Input blocked - Animation in progress");
+      blockedMessageShown = true;
+    }
+    if (!btnLeftPressed && !btnRightPressed && !btnOkPressed) {
+      blockedMessageShown = false;
+    }
+#endif
+    btnLeftPressed = false;
+    btnRightPressed = false;
+    btnOkPressed = false;
+    return;
+  }
   
   // Capture and clear button flags for one-shot behavior
   bool left = btnLeftPressed;
@@ -55,6 +56,9 @@ void updateMenuLogic() {
   btnOkPressed = false;
 
   if (left) {
+#ifdef DEBUG_BUTTONS
+    Serial.println("[BTN] LEFT pressed - Navigate menu");
+#endif
     // Auswahl nach links
     if (currentItem == MENU_FEED) {
       currentItem = MENU_CLEAN;
@@ -62,6 +66,9 @@ void updateMenuLogic() {
       currentItem = static_cast<MenuItem>(static_cast<int>(currentItem) - 1);
     }
   } else if (right) {
+#ifdef DEBUG_BUTTONS
+    Serial.println("[BTN] RIGHT pressed - Navigate menu");
+#endif
     // Auswahl nach rechts
     if (currentItem == MENU_CLEAN) {
       currentItem = MENU_FEED;
@@ -69,12 +76,35 @@ void updateMenuLogic() {
       currentItem = static_cast<MenuItem>(static_cast<int>(currentItem) + 1);
     }
   } else if (ok) {
+#ifdef DEBUG_BUTTONS
+    Serial.print("[BTN] OK pressed - Action: ");
+#endif
     // Aktion bestätigen
     switch (currentItem) {
-      case MENU_FEED: pendingAction = ACTION_FEED; break;
-      case MENU_PLAY: pendingAction = ACTION_PLAY; break;
-      case MENU_REST: pendingAction = ACTION_REST; break;
-      case MENU_CLEAN: pendingAction = ACTION_CLEAN; break;
+      case MENU_FEED: 
+#ifdef DEBUG_BUTTONS
+        Serial.println("FEED");
+#endif
+        pendingAction = ACTION_FEED; 
+        break;
+      case MENU_PLAY: 
+#ifdef DEBUG_BUTTONS
+        Serial.println("PLAY");
+#endif
+        pendingAction = ACTION_PLAY; 
+        break;
+      case MENU_REST: 
+#ifdef DEBUG_BUTTONS
+        Serial.println("REST");
+#endif
+        pendingAction = ACTION_REST; 
+        break;
+      case MENU_CLEAN: 
+#ifdef DEBUG_BUTTONS
+        Serial.println("CLEAN");
+#endif
+        pendingAction = ACTION_CLEAN; 
+        break;
     }
   }
 }

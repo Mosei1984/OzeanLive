@@ -3,16 +3,12 @@
 #include "config.h"
 #include "pet.h"
 #include "eeprom_store.h"
+#include "buttons.h"
 
 PauseChoice runPauseMenu()
 {
     uint8_t selected = 0;
     const uint8_t NUM_OPTIONS = 3;
-
-    bool btnLeftPressed = false;
-    bool btnRightPressed = false;
-    bool btnOkPressed = false;
-
     int16_t maxHP = getMaxHP();
 
     while (true)
@@ -46,6 +42,17 @@ PauseChoice runPauseMenu()
         tft.print("/");
         tft.print(maxHP);
 
+        tft.setCursor(40, statsY + 48);
+        tft.print("Age: ");
+        uint32_t hours = pet.ageSec / 3600;
+        uint32_t mins = (pet.ageSec % 3600) / 60;
+        if (hours > 0) {
+            tft.print(hours);
+            tft.print("h ");
+        }
+        tft.print(mins);
+        tft.print("m");
+
         const char *options[NUM_OPTIONS] = {"Resume", "Save & Resume", "Save & Exit"};
         int16_t startY = 140;
         int16_t spacing = 16;
@@ -78,13 +85,18 @@ PauseChoice runPauseMenu()
 
         delay(100);
 
-        int sLeft = digitalRead(PIN_BTN_LEFT);
-        int sRight = digitalRead(PIN_BTN_RIGHT);
-        int sOk = digitalRead(PIN_BTN_OK);
+        Buttons.poll();
+        bool btnLeftPressed = false;
+        bool btnOkPressed = false;
+        bool btnRightPressed = false;
+        Buttons.getAndClearPressed(btnLeftPressed, btnOkPressed, btnRightPressed);
 
-        if (sLeft == LOW && !btnLeftPressed)
+        if (btnLeftPressed)
         {
-            btnLeftPressed = true;
+#ifdef DEBUG_BUTTONS
+            Serial.print("[PAUSE] Navigate UP - Selected: ");
+            Serial.println(selected);
+#endif
             if (selected == 0)
             {
                 selected = NUM_OPTIONS - 1;
@@ -94,27 +106,28 @@ PauseChoice runPauseMenu()
                 selected--;
             }
         }
-        else if (sLeft == HIGH)
-        {
-            btnLeftPressed = false;
-        }
 
-        if (sRight == LOW && !btnRightPressed)
+        if (btnRightPressed)
         {
-            btnRightPressed = true;
+#ifdef DEBUG_BUTTONS
+            Serial.print("[PAUSE] Navigate DOWN - Selected: ");
+            Serial.println(selected);
+#endif
             selected = (selected + 1) % NUM_OPTIONS;
         }
-        else if (sRight == HIGH)
-        {
-            btnRightPressed = false;
-        }
 
-        if (sOk == LOW && !btnOkPressed)
+        if (btnOkPressed)
         {
-            btnOkPressed = true;
+#ifdef DEBUG_BUTTONS
+            Serial.print("[PAUSE] OK pressed on option: ");
+            Serial.println(selected);
+#endif
 
             if (selected == PAUSE_SAVE_RESUME)
             {
+#ifdef DEBUG_BUTTONS
+                Serial.println("[PAUSE] Action: SAVE & RESUME");
+#endif
                 saveFullIfDue(pet.hunger, pet.fun, pet.energy, pet.hp, pet.ageSec, pet.dead, true);
 
                 tft.fillRect(40, TFT_HEIGHT - 40, TFT_WIDTH - 80, 20, 0x0000);
@@ -131,6 +144,9 @@ PauseChoice runPauseMenu()
             }
             else if (selected == PAUSE_SAVE_EXIT)
             {
+#ifdef DEBUG_BUTTONS
+                Serial.println("[PAUSE] Action: SAVE & EXIT");
+#endif
                 saveFullIfDue(pet.hunger, pet.fun, pet.energy, pet.hp, pet.ageSec, pet.dead, true);
 
                 while (digitalRead(PIN_BTN_OK) == LOW)
@@ -140,15 +156,14 @@ PauseChoice runPauseMenu()
             }
             else
             {
+#ifdef DEBUG_BUTTONS
+                Serial.println("[PAUSE] Action: RESUME");
+#endif
                 while (digitalRead(PIN_BTN_OK) == LOW)
                     ;
 
                 return PAUSE_RESUME;
             }
-        }
-        else if (sOk == HIGH)
-        {
-            btnOkPressed = false;
         }
     }
 }

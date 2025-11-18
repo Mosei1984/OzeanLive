@@ -83,20 +83,68 @@ void requestTransition(AnimState newState, float duration) {
   
   gAnimator.nextState = newState;
   gAnimator.nextClip = clipForState(newState);
+  
+  // Validate clip before transitioning
+  if (!gAnimator.nextClip || gAnimator.nextClip->frameCount <= 0) {
+#ifdef DEBUG_GAME_LOGIC
+    Serial.println("[ANIMATOR] WARNING: Rejecting transition to invalid clip");
+#endif
+    return;
+  }
+  
   gAnimator.transitionDuration = max(0.001f, duration); // Ensure positive duration
   gAnimator.transitionProgress = 0.0f;
 }
 
 const uint16_t* getCurrentFrame() {
-  if (gAnimator.currentClip == nullptr) {
-    return nullptr;
+  const AnimationClip* clip = gAnimator.currentClip ? gAnimator.currentClip : &CLIP_IDLE;
+  
+  // Validate clip
+  if (!clip || clip->frameCount <= 0) {
+#ifdef DEBUG_GAME_LOGIC
+    Serial.println("[ANIMATOR] WARNING: Invalid clip, falling back to IDLE");
+#endif
+    gAnimator.currentState = ANIM_IDLE;
+    gAnimator.currentClip = &CLIP_IDLE;
+    gAnimator.currentFrame = 0;
+    return CLIP_IDLE.frames[0];
   }
   
-  if (gAnimator.currentFrame >= gAnimator.currentClip->frameCount) {
-    return nullptr;
+  // Validate frame index
+  if (gAnimator.currentFrame < 0 || gAnimator.currentFrame >= clip->frameCount) {
+#ifdef DEBUG_GAME_LOGIC
+    Serial.print("[ANIMATOR] WARNING: Frame index out of bounds: ");
+    Serial.println(gAnimator.currentFrame);
+#endif
+    gAnimator.currentFrame = 0;
   }
   
-  return gAnimator.currentClip->frames[gAnimator.currentFrame];
+  // Get frame pointer
+  const uint16_t* frame = clip->frames[gAnimator.currentFrame];
+  
+  // Validate frame pointer
+  if (!frame) {
+#ifdef DEBUG_GAME_LOGIC
+    Serial.print("[ANIMATOR] WARNING: Null frame at index ");
+    Serial.println(gAnimator.currentFrame);
+#endif
+    // Try to find first valid frame in clip
+    for (int i = 0; i < clip->frameCount; ++i) {
+      if (clip->frames[i]) {
+        gAnimator.currentFrame = i;
+        return clip->frames[i];
+      }
+    }
+    
+    // Last resort: use idle frame 0
+    Serial.println("[ANIMATOR] ERROR: No valid frames in clip, using IDLE");
+    gAnimator.currentState = ANIM_IDLE;
+    gAnimator.currentClip = &CLIP_IDLE;
+    gAnimator.currentFrame = 0;
+    return CLIP_IDLE.frames[0];
+  }
+  
+  return frame;
 }
 
 bool isFlipped() {

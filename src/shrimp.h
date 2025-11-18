@@ -3,3 +3,4 @@
 
 void initShrimp();
 void updateAndDrawShrimp(float deltaTime);
+void restoreShrimpRegion();

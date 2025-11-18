@@ -71,7 +71,20 @@ void updateParticles(float deltaTime) {
 
     p.age += deltaTime;
     if (p.age >= p.lifetime) {
+      // Register both current and previous positions to fully erase
+      uint8_t w, h;
+      getParticleWH(p.type, &w, &h);
+      int16_t px = static_cast<int16_t>(p.x);
+      int16_t py = static_cast<int16_t>(p.y);
+      
+      if (prevPositions[i].x >= 0) {
+        addDirtyRect(prevPositions[i].x, prevPositions[i].y, w, h);
+      }
+      addDirtyRect(px, py, w, h);  // Current position too
+      
       p.alive = false;
+      prevPositions[i].x = -1;
+      prevPositions[i].y = -1;
     }
   }
 }
@@ -80,6 +93,9 @@ void updateParticles(float deltaTime) {
 void restoreParticleRegions() {
   for (uint8_t i = 0; i < MAX_PARTICLES; i++) {
     if (prevPositions[i].x >= 0) {
+#ifdef DEBUG_GRAPHICS
+      Serial.print("[PARTICLE-RESTORE] ");
+#endif
       if (prevPositions[i].x < PLAY_AREA_X || prevPositions[i].x >= PLAY_AREA_X + PLAY_AREA_W ||
           prevPositions[i].y < PLAY_AREA_Y || prevPositions[i].y >= PLAY_AREA_Y + PLAY_AREA_H) {
         prevPositions[i].x = -1;
@@ -109,49 +125,68 @@ void restoreParticleRegions() {
 }
 
 void drawParticles() {
-  for (uint8_t i = 0; i < MAX_PARTICLES; i++) {
-    if (!gParticles[i].alive) {
-      continue;
+  FramePhase phase = getFramePhase();
+  
+  // COLLECT phase: Register dirty rects
+  if (phase == PHASE_COLLECT) {
+    for (uint8_t i = 0; i < MAX_PARTICLES; i++) {
+      if (!gParticles[i].alive) continue;
+
+      Particle& p = gParticles[i];
+      int16_t px = static_cast<int16_t>(p.x);
+      int16_t py = static_cast<int16_t>(p.y);
+
+      uint8_t w, h;
+      getParticleWH(p.type, &w, &h);
+
+      // Register dirty rect for particle (current + previous position)
+      addDirtyRectPair(px, py, w, h, prevPositions[i].x, prevPositions[i].y);
     }
+  }
+  // DRAW phase: Draw particles and commit positions
+  else if (phase == PHASE_DRAW) {
+    for (uint8_t i = 0; i < MAX_PARTICLES; i++) {
+      if (!gParticles[i].alive) continue;
 
-    Particle& p = gParticles[i];
+      Particle& p = gParticles[i];
+      int16_t px = static_cast<int16_t>(p.x);
+      int16_t py = static_cast<int16_t>(p.y);
 
-    int16_t px = static_cast<int16_t>(p.x);
-    int16_t py = static_cast<int16_t>(p.y);
+      float alpha = 1.0f - (p.age / p.lifetime);
+      alpha = constrain(alpha, 0.0f, 1.0f);
 
-    float alpha = 1.0f - (p.age / p.lifetime);
-    alpha = constrain(alpha, 0.0f, 1.0f);
+      const uint16_t* sprite = nullptr;
+      uint8_t w = 8, h = 8;
 
-    const uint16_t* sprite = nullptr;
-    uint8_t w = 8, h = 8;
+      switch (p.type) {
+        case PARTICLE_DIRT:
+          sprite = particle_dirt;
+          w = PARTICLE_DIRT_WIDTH;
+          h = PARTICLE_DIRT_HEIGHT;
+          break;
+        default:
+          break;
+      }
 
-    switch (p.type) {
-      case PARTICLE_DIRT:
-        sprite = particle_dirt;
-        w = PARTICLE_DIRT_WIDTH;
-        h = PARTICLE_DIRT_HEIGHT;
-        break;
-      default:
-        break;
-    }
-
-    if (sprite) {
-      for (uint8_t dy = 0; dy < h; dy++) {
-        for (uint8_t dx = 0; dx < w; dx++) {
-          int16_t sx = px + dx;
-          int16_t sy = py + dy;
-          if (sx < PLAY_AREA_X || sx >= PLAY_AREA_X + PLAY_AREA_W ||
-              sy < PLAY_AREA_Y || sy >= PLAY_AREA_Y + PLAY_AREA_H) continue;
-          uint16_t color = pgm_read_word(&sprite[dy * w + dx]);
-          if (color != TRANSPARENT_COLOR && shouldDrawPixel(sx, sy, alpha)) {
-            tft.drawPixel(sx, sy, color);
+      if (sprite) {
+        for (uint8_t dy = 0; dy < h; dy++) {
+          for (uint8_t dx = 0; dx < w; dx++) {
+            int16_t sx = px + dx;
+            int16_t sy = py + dy;
+            if (sx < PLAY_AREA_X || sx >= PLAY_AREA_X + PLAY_AREA_W ||
+                sy < PLAY_AREA_Y || sy >= PLAY_AREA_Y + PLAY_AREA_H) continue;
+            uint16_t color = pgm_read_word(&sprite[dy * w + dx]);
+            if (color != TRANSPARENT_COLOR && shouldDrawPixel(sx, sy, alpha)) {
+              tft.drawPixel(sx, sy, color);
+            }
           }
         }
       }
-    }
 
-    prevPositions[i].x = px;
-    prevPositions[i].y = py;
+      // Commit current position for next frame
+      prevPositions[i].x = px;
+      prevPositions[i].y = py;
+    }
   }
 }
 

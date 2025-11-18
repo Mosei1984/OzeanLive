@@ -3,23 +3,21 @@
 #include "clownfish_frames.h"
 
 // =============================================================================
-// IDLE Animation - 2 Frames (leichtes Atmen, 4 FPS)
+// IDLE Animation - 1 Frame (nur idle_f0)
 // =============================================================================
 const uint16_t* const clownfish_idle_frames[] PROGMEM = {
-  clownfish_idle_f0,
-  clownfish_idle_f1
+  clownfish_idle_f0
 };
 
 // =============================================================================
-// MOVING Animation - 6 Frames (idle1 -> swim -> idle2 -> swim -> idle1 -> swim, 10 FPS)
+// MOVING Animation - 5 Frames (idle_f0 -> moving_f0 -> moving_f1 -> moving_f0 -> idle_f0)
 // =============================================================================
 const uint16_t* const clownfish_moving_frames[] PROGMEM = {
-  clownfish_idle_f0,      // idle 1
-  clownfish_moving_f0,    // swim
-  clownfish_idle_f1,      // idle 2
-  clownfish_moving_f0,    // swim
-  clownfish_idle_f0,      // idle 1
-  clownfish_moving_f0     // swim
+  clownfish_idle_f0,      // start idle
+  clownfish_moving_f0,    // swim 1
+  clownfish_moving_f1,    // swim 2
+  clownfish_moving_f0,    // swim 1 again
+  clownfish_idle_f0       // back to idle
 };
 
 // =============================================================================
@@ -30,10 +28,12 @@ const uint16_t* const clownfish_eating_frames[] PROGMEM = {
 };
 
 // =============================================================================
-// PLAYING Animation - 1 Frame (statischer Fisch mit Herzen)
+// PLAYING Animation - 3 Frames (Bälle 2s, dann Herzen 1s)
 // =============================================================================
 const uint16_t* const clownfish_playing_frames[] PROGMEM = {
-  clownfish_playing_f0
+  clownfish_playing_f1,   // fish with colorful balls (1s)
+  clownfish_playing_f1,   // fish with colorful balls (2s total)
+  clownfish_playing_f0    // fish with hearts (3s total)
 };
 
 // =============================================================================
@@ -55,14 +55,14 @@ const uint16_t* const clownfish_pooping_frames[] PROGMEM = {
 // =============================================================================
 const AnimationClip CLIP_IDLE = {
   clownfish_idle_frames,
-  2,      // frameCount
-  4.0f,   // fps (langsames Atmen)
+  1,      // frameCount (only idle_f0)
+  1.0f,   // fps (irrelevant for 1 frame)
   true    // loop
 };
 
 const AnimationClip CLIP_MOVING = {
   clownfish_moving_frames,
-  6,      // frameCount
+  5,      // frameCount (idle -> moving_f0 -> moving_f1 -> moving_f0 -> idle)
   10.0f,  // fps (smooth swimming cycle)
   true    // loop
 };
@@ -76,9 +76,9 @@ const AnimationClip CLIP_EATING = {
 
 const AnimationClip CLIP_PLAYING = {
   clownfish_playing_frames,
-  1,      // frameCount (static frame mit Herzen)
-  1.0f,   // fps (irrelevant bei 1 Frame)
-  true    // loop (bleibt stehen während ACTION_PLAY aktiv ist)
+  3,      // frameCount (balls 2s, hearts 1s)
+  1.0f,   // fps (1 FPS = 1 second per frame, total 3s)
+  false   // no loop (play once: balls, balls, hearts)
 };
 
 const AnimationClip CLIP_SLEEPING = {
